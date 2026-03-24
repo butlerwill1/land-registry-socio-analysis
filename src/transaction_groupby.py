@@ -1,100 +1,232 @@
-#
+"""
+Land Registry Transaction Groupby Analysis
+===========================================
+
+This script performs comprehensive groupby aggregations on UK Land Registry property
+transaction data using PySpark. It processes large-scale transaction data stored in
+Parquet format on S3, enriches it with postcode classifications, and generates
+statistical summaries at multiple geographic levels (area, district, sector).
+
+Key Operations:
+    1. Load transaction data from S3 Parquet files
+    2. Parse and classify UK postcodes into geographic hierarchies
+    3. Identify London vs non-London properties
+    4. Calculate price statistics (mean, median, percentiles, variance)
+    5. Compute year-over-year percentage changes
+    6. Evaluate sample quality using statistical thresholds
+    7. Export results to S3 as CSV files
+
+Output Files:
+    - area_pct_change.csv: Aggregated by postcode area
+    - district_pct_change.csv: Aggregated by postcode district
+    - sector_pct_change.csv: Aggregated by postcode sector
+
+Author: Land Registry Analysis Project
+"""
+
+# ============================================================================
+# IMPORTS
+# ============================================================================
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf
+from pyspark.sql.functions import udf, col, avg, count, expr, year, lag, when
 from pyspark.sql.types import StringType, StructType, StructField
-from pyspark.sql.functions import col, avg, count, expr, year, lag, when
 from pyspark.sql.window import Window
 import re
 import pyspark_functions as func
 import importlib
-importlib.reload(func)
 import os
-#%% ---------------------------------------------------------------------------------------------------
-#                      Pyspark Code for doing group by aggregations on Land Registry Data
-# -----------------------------------------------------------------------------------------------------
 
-# Parameters to assess the quality of a sample of a group of property transactions created when performing a groupby
-sample_quality_params = {
-    'min_transactions': 30, # Considered a minimum sample size in Central Limit Theorem
-    'max_coef_var': 50, # Maximum allowed Coefficient of variance 
-    'max_median_mean_diff_pct': 10, # Maximum allowed percentage difference between the median and mean, to see whether a few large property prices skew the mean
-    'max_iqr_pct': 25 # Maximum allowed percentage of the Interquartile range divided by the mediam, another measure of skewnwss
+# Reload custom functions module to pick up any changes during development
+importlib.reload(func)
+
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+# Sample quality thresholds for filtering unreliable aggregations
+# These parameters help identify statistically robust property price samples
+SAMPLE_QUALITY_PARAMS = {
+    'min_transactions': 30,              # Minimum sample size (Central Limit Theorem)
+    'max_coef_var': 50,                  # Maximum coefficient of variation (%)
+    'max_median_mean_diff_pct': 10,      # Max median-mean difference (%) - detects skewness
+    'max_iqr_pct': 25                    # Max IQR as % of median - another skewness measure
 }
-#
+
+# S3 paths
+PARQUET_INPUT_PATH = "s3a://landregistryproject/land_registry_data.parquet"
+OUTPUT_BASE_PATH = "s3a://landregistryproject/"
+
+
+# ============================================================================
+# SPARK SESSION INITIALIZATION
+# ============================================================================
 spark = SparkSession.builder \
-        .appName("GroupBy").getOrCreate()
+    .appName("LandRegistryGroupByAnalysis") \
+    .getOrCreate()
 
-#
-parquet_folder_path = "s3a://landregistryproject/land_registry_data.parquet"
 
-# Usage in a DataFrame
-df = spark.read.parquet(parquet_folder_path)
+# ============================================================================
+# DATA LOADING AND INITIAL CLEANING
+# ============================================================================
+print("Loading Land Registry data from S3...")
+df = spark.read.parquet(PARQUET_INPUT_PATH)
 
-# Filter out None values, which are represented as 
-# df = df.withColumn("postcode", when(col("postcode") == "", None).otherwise(col("postcode")))
+# Remove records with missing postcodes (cannot be geographically classified)
 df = df.dropna(subset=['postcode'])
-#%%---------------------------------------------------------------------------------------------------
-#                    Split Postcode into Areas, Districts and Sectors
-# -----------------------------------------------------------------------------------------------------
+print(f"Loaded {df.count():,} transactions with valid postcodes")
+
+
+# ============================================================================
+# POSTCODE PARSING AND GEOGRAPHIC CLASSIFICATION
+# ============================================================================
+
+# Define schema for postcode parsing UDF output
+# UK postcodes split into: Area (e.g., "SW"), District (e.g., "SW1A"), Sector (e.g., "SW1A-1")
 split_output_schema = StructType([
     StructField("postcode_area", StringType(), True),
     StructField("postcode_district", StringType(), True),
     StructField("postcode_sector", StringType(), True)
 ])
 
-# Register the function as a UDF
+# Register UDF to split postcodes into geographic components
 split_postcode_udf = udf(func.split_postcode, split_output_schema)
 
+print("Parsing postcodes into area, district, and sector...")
 df = df.withColumn("postcode_parts", split_postcode_udf(df["postcode"]))
-df = df.select("*", "postcode_parts.*")  # Flatten the struct into separate columns
+df = df.select("*", "postcode_parts.*")  # Flatten struct into separate columns
 
-# Now classify whether the areas, districts or sectors are in London or not?
+# Classify postcodes as Central London, Greater London, or Outside London
 classify_postcode_london_udf = udf(func.classify_london_postcode, StringType())
+df = df.withColumn("is_london?", classify_postcode_london_udf(
+    df['postcode_area'],
+    df['postcode_district']
+))
 
-df = df.withColumn("is_london?", classify_postcode_london_udf(df['postcode_area'], df['postcode_district']))
-
+# Convert date string to timestamp and extract year
 df = df.withColumn("date_transfer", col("date_transfer").cast("timestamp"))
-
 df = df.withColumn("year", year(col("date_transfer")))
 
-# ----------------------------------------------------------------------------------------
-# Perform groupby operations on the postcode sections and find average and median prices
-# ----------------------------------------------------------------------------------------
-            
-groupby_cols = ['is_london?', 'property_type' ,'year']
+print("Postcode parsing complete.")
 
+
+# ============================================================================
+# AGGREGATION: CALCULATE PRICE STATISTICS BY GEOGRAPHIC LEVEL
+# ============================================================================
+
+# Common grouping columns for all aggregations
+groupby_cols = ['is_london?', 'property_type', 'year']
+
+print("\nPerforming aggregations at multiple geographic levels...")
+
+# Aggregate by postcode AREA (broadest level, e.g., "SW", "E", "M")
+print("  - Aggregating by postcode area...")
 area_groupby_df = func.groupby_calc_price(df, ['postcode_area'] + groupby_cols)
-print(f"Number of rows in area_groupby_df = {area_groupby_df.count()}")
+print(f"    Created {area_groupby_df.count():,} area-level aggregations")
 
-district_groupby_df = func.groupby_calc_price(df, ['postcode_area', 'postcode_district' ] + groupby_cols)
-print(f"Number of rows in district_groupby_df = {district_groupby_df.count()}")
+# Aggregate by postcode DISTRICT (medium level, e.g., "SW1A", "E1", "M1")
+print("  - Aggregating by postcode district...")
+district_groupby_df = func.groupby_calc_price(
+    df,
+    ['postcode_area', 'postcode_district'] + groupby_cols
+)
+print(f"    Created {district_groupby_df.count():,} district-level aggregations")
 
-sector_grouby_df = func.groupby_calc_price(df, 
-                                           ['postcode_area', 'postcode_district', 'postcode_sector'] + groupby_cols)
-print(f"Number of rows in sector_grouby_df = {sector_grouby_df.count()}")
-# ----------------------------------------------------------------------------------------
-#  Now calculate the percentage differences between the average prices
-# ----------------------------------------------------------------------------------------
+# Aggregate by postcode SECTOR (finest level, e.g., "SW1A-1", "E1-6")
+print("  - Aggregating by postcode sector...")
+sector_groupby_df = func.groupby_calc_price(
+    df,
+    ['postcode_area', 'postcode_district', 'postcode_sector'] + groupby_cols
+)
+print(f"    Created {sector_groupby_df.count():,} sector-level aggregations")
 
-# Usage of the function
-area_pct_change = func.calculate_pct_change(area_groupby_df, ['postcode_area'] + groupby_cols)
-district_pct_change = func.calculate_pct_change(district_groupby_df, ['postcode_district'] + groupby_cols)
-sector_pct_change = func.calculate_pct_change(sector_grouby_df, ['postcode_sector'] + groupby_cols)
 
-# Show results
-area_pct_change.show()
-district_pct_change.show()
-sector_pct_change.show()
+# ============================================================================
+# CALCULATE YEAR-OVER-YEAR PERCENTAGE CHANGES
+# ============================================================================
 
-# %%
-area_pct_change = func.evaluate_sample_quality(area_groupby_df, sample_quality_params)
-district_pct_change = func.evaluate_sample_quality(district_pct_change, sample_quality_params)
-sector_pct_change = func.evaluate_sample_quality(sector_pct_change, sample_quality_params)
-#%%
-# area_pct_change.write.mode('overwrite').csv("s3a://landregistryproject/area_pct_change.csv")
-# district_pct_change.write.mode('overwrite').csv("s3a://landregistryproject/district_pct_change.csv")
-# sector_pct_change.write.mode('overwrite').csv("s3a://landregistryproject/sector_pct_change.csv")
+print("\nCalculating year-over-year percentage changes...")
 
-area_pct_change.coalesce(1).write.format("csv").option("header", "true").mode("overwrite").save("s3a://landregistryproject/area_pct_change.csv")
-district_pct_change.coalesce(1).write.format("csv").option("header", "true").mode("overwrite").save("s3a://landregistryproject/district_pct_change.csv")
-sector_pct_change.coalesce(1).write.format("csv").option("header", "true").mode("overwrite").save("s3a://landregistryproject/sector_pct_change.csv")
+area_pct_change = func.calculate_pct_change(
+    area_groupby_df,
+    ['postcode_area'] + groupby_cols
+)
+
+district_pct_change = func.calculate_pct_change(
+    district_groupby_df,
+    ['postcode_district'] + groupby_cols
+)
+
+sector_pct_change = func.calculate_pct_change(
+    sector_groupby_df,
+    ['postcode_sector'] + groupby_cols
+)
+
+# Display sample results
+print("\nSample results (Area level):")
+area_pct_change.show(10)
+
+
+# ============================================================================
+# EVALUATE SAMPLE QUALITY
+# ============================================================================
+
+print("\nEvaluating sample quality using statistical thresholds...")
+
+area_pct_change = func.evaluate_sample_quality(
+    area_pct_change,
+    SAMPLE_QUALITY_PARAMS
+)
+
+district_pct_change = func.evaluate_sample_quality(
+    district_pct_change,
+    SAMPLE_QUALITY_PARAMS
+)
+
+sector_pct_change = func.evaluate_sample_quality(
+    sector_pct_change,
+    SAMPLE_QUALITY_PARAMS
+)
+
+# Show quality statistics
+good_samples_area = area_pct_change.filter(col("is_good_sample") == True).count()
+total_samples_area = area_pct_change.count()
+print(f"Area level: {good_samples_area:,} / {total_samples_area:,} samples passed quality checks")
+
+
+# ============================================================================
+# EXPORT RESULTS TO S3
+# ============================================================================
+
+print("\nExporting results to S3...")
+
+# Coalesce to single file for easier downstream processing
+# Note: For very large datasets, consider partitioning instead
+
+area_pct_change.coalesce(1) \
+    .write.format("csv") \
+    .option("header", "true") \
+    .mode("overwrite") \
+    .save(f"{OUTPUT_BASE_PATH}area_pct_change.csv")
+print("  ✓ Exported area_pct_change.csv")
+
+district_pct_change.coalesce(1) \
+    .write.format("csv") \
+    .option("header", "true") \
+    .mode("overwrite") \
+    .save(f"{OUTPUT_BASE_PATH}district_pct_change.csv")
+print("  ✓ Exported district_pct_change.csv")
+
+sector_pct_change.coalesce(1) \
+    .write.format("csv") \
+    .option("header", "true") \
+    .mode("overwrite") \
+    .save(f"{OUTPUT_BASE_PATH}sector_pct_change.csv")
+print("  ✓ Exported sector_pct_change.csv")
+
+print("\n" + "="*70)
+print("PROCESSING COMPLETE")
+print("="*70)
+
+# Stop Spark session
+spark.stop()

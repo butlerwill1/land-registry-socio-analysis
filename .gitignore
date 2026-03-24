@@ -22,3 +22,11 @@ land_registry_data.csv
 district_groupby_socio_economic.gpkg
 socio_economic_postcode.gpkg
 District_Transaction_Groupby%.csv
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+*.ipynb_checkpoints
+
+# EMR Notebooks
+.sparkmagic/

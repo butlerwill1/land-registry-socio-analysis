@@ -7,8 +7,31 @@ This project analyses historic UK Land Registry data, sorted by postcode distric
 
 ![Example Dashboard Output Of London Postcode District Comparisons](/Images/LondonDistrictsComparison.png)
 
+## Getting Started
+
+### Production Workflow (Recommended)
+
+This project uses a **script-based workflow** with automated deployment to AWS EMR:
+
+**Quick Start:**
+1. Deploy EMR cluster: `cd terraform && terraform apply`
+2. Edit Python scripts in `src/`
+3. Push to GitHub → Scripts auto-sync to S3
+4. Run on EMR: `./scripts/run_on_emr.sh transaction_groupby.py <cluster-id>`
+
+📖 **[Read the EMR Workflow Guide](docs/EMR_WORKFLOW.md)** for detailed instructions.
+
+### Alternative: Interactive Development with EMR Notebooks
+
+For exploratory analysis, you can also use Jupyter notebooks on EMR:
+
+📖 **[Read the Notebook Quick Start Guide](notebooks/QUICKSTART.md)** for setup instructions.
+
+📊 **[See Visual Comparison](notebooks/VISUAL_GUIDE.md)** of notebooks vs scripts workflow.
+
 ## Features
 
+- **Interactive Development**: Jupyter notebooks on EMR for cell-by-cell data exploration and transformation with immediate feedback.
 - **Data Processing**: Functions are implemented to clean and prepare the UK Land Registry data for analysis, ensuring quality and consistency.
 - **Geospatial Merging**: Utilizes geopandas for merging land registry data with socio-economic data on a postcode district level, enabling spatial analysis of socio-economic impacts on property transactions.
 - **PySpark Analytics**: Employs PySpark for efficient processing of large datasets, facilitating tasks such as grouping and aggregation by postcode district.
@@ -23,18 +46,124 @@ This project analyses historic UK Land Registry data, sorted by postcode distric
 
 ## Built With
 - **AWS EMR Clusters**: A Cloud Big Data platform for processing massive amounts of data which can host big data software technologies such as Apache Spark.
+- **EMR Notebooks**: Jupyter notebook environment for interactive development and data exploration on EMR clusters.
 - **Terraform**: An Infrastructure as Code (IaC) technology used as a clear and convinient way to create an AWS EMR Cluster.
 - **Apache Spark**: An open-source programming interface for big data tasks that manipulates clusters of computers and distributed datasets to process large amounts of data.
 - **Geopandas**: A python library similar to pandas but also has "shapely" technology for manipulation of geometric objects and "PyProj" for projection and coordinate transformations.
 - **Streamlit**: A python dashboarding technology with interactive filters, buttons, widgets, maps, tables and more.
 - **Folium**: A python library for making interactive data visualisations on maps utilising Leaflet.js.
 
-## Code File Explanations
-- **functions.py**: Provides foundational utility functions for data cleaning, aggregation, and preprocessing. It's used across various scripts for consistent data manipulation tasks.
-- **pyspark_functions.py**: Defines PySpark functions for processing large datasets, including splitting postcodes, calculating statistical measures of variation, and evaluating sample quality. It supports complex data transformations and analyses, such as calculating price changes and rolling averages.
-- **preprocessing_qa.py**: Focused on quality assurance for land registry and socio-economic datasets, this script identifies and addresses missing or inaccurate data. It validates postcodes, prices, and dates in the land registry data and checks for invalid geometries in geospatial datasets. The script ensures data integrity before further processing and analysis.
-- **transaction_groupby.py**: Utilizes PySpark to aggregate land registry data by geographical levels, applying quality metrics to ensure data reliability. It calculates average prices and percentage price changes, filtering the data based on quality criteria. The script exports processed datasets for further analysis or visualization, serving as a foundational step in the data workflow.
-- **qa_groupby_data.py**: Performs quality assurance on the grouped transaction data and prepares it for analysis or visualization. It filters the transaction data by property type and postcode districts that have enough transactions for a significant sample size. The script exports cleaned and processed data for visualization, especially in the Streamlit dashboard.
-- **geospatial_merge.py**: This script merges postcode district polygons with socio-economic indicators, preparing geospatial data for analysis. It adjusts geographic coordinate systems, renames columns for clarity, and performs spatial joins to combine datasets. The result is a GeoDataFrame that enriches postcode districts with socio-economic data, exported for further use in visualizations or analysis.
-- **streamlit_dash.py**: Creates an interactive dashboard using Streamlit, integrating geospatial and transaction data for visualization. It features map-based visualizations and statistical charts to explore property prices and transactions. This script makes the processed data accessible and interpretable to end-users, highlighting market trends and socio-economic insights.
+## Project Structure
+
+### 📁 Core Python Scripts (`src/`)
+
+#### PySpark Scripts (Run on EMR)
+- **`land_registry_ingestion.py`**: CSV to Parquet conversion (one-time setup)
+  - Converts raw 5GB CSV to optimized Snappy-compressed Parquet (.snappy.parquet)
+  - Partitions data by year for efficient querying
+  - Performs data quality checks during conversion
+  - Achieves ~2-3x compression ratio
+  - Automatically deletes original CSV after successful verification
+  - Outputs: `land_registry_data.parquet/` (partitioned by year)
+
+- **`transaction_groupby.py`**: Main aggregation pipeline that processes the full 5GB Land Registry dataset
+  - Groups transactions by postcode district, property type, and year
+  - Calculates comprehensive price statistics (mean, median, percentiles, skewness, kurtosis)
+  - Computes year-over-year price changes and rolling averages
+  - Outputs: `area_pct_change.csv`, `district_pct_change.csv`, `sector_pct_change.csv`
+
+- **`pyspark_functions.py`**: Utility functions for PySpark processing
+  - Postcode parsing and geographic classification (London detection)
+  - Statistical aggregation functions with quality metrics
+  - Time-series analysis (rolling averages, percentage changes)
+  - Data quality assessment functions
+
+#### Local Processing Scripts (Run on your machine)
+- **`preprocessing_qa.py`**: Data quality assurance for raw datasets
+  - Validates Land Registry data (postcodes, prices, dates)
+  - Checks geospatial polygon validity
+  - Repairs invalid geometries using buffer(0) method
+  - Ensures data integrity before PySpark processing
+
+- **`qa_groupby_data.py`**: Prepares PySpark output for visualization
+  - Filters low-quality samples (insufficient transaction counts)
+  - Calculates 5-year rolling average price changes
+  - Sorts by price increase for hotspot identification
+  - Exports cleaned datasets for Streamlit dashboard
+
+- **`geospatial_merge.py`**: Merges transaction data with socio-economic indicators
+  - Performs spatial joins (LSOA polygons within postcode districts)
+  - Aggregates socio-economic data to postcode district level
+  - Merges with transaction statistics
+  - Outputs: `district_groupby_socio_economic.gpkg` for visualization
+
+- **`streamlit_dash.py`**: Interactive dashboard for data exploration
+  - Interactive maps with property price overlays
+  - Time-series charts for price trends
+  - Filters for property type, region, and year
+  - Socio-economic indicator comparisons
+
+- **`functions.py`**: General utility functions
+  - Data cleaning and preprocessing helpers
+  - Postcode validation and formatting
+  - Socio-economic column name standardization
+
+### 📁 Automation & Deployment
+
+- **`.github/workflows/sync-scripts-to-s3.yml`**: GitHub Actions workflow
+  - Automatically syncs `src/*.py` files to S3 on push to main
+  - Triggered on changes to Python scripts
+  - Ensures EMR always runs latest code version
+
+- **`scripts/upload_csv_to_s3.sh`**: Upload large CSV files to S3
+  - Handles files larger than 5GB (AWS Console UI limit)
+  - Uses AWS CLI multipart upload
+  - Shows progress during upload
+  - Usage: `./scripts/upload_csv_to_s3.sh ~/Downloads/land_registry_data.csv`
+
+- **`scripts/run_on_emr.sh`**: Helper script for EMR job submission
+  - Uploads script to S3
+  - Automatically uploads dependencies
+  - Submits EMR step and provides monitoring commands
+  - Usage: `./scripts/run_on_emr.sh transaction_groupby.py <cluster-id>`
+
+### 📁 Documentation
+
+- **`docs/EMR_WORKFLOW.md`**: Complete guide to the EMR workflow
+  - Automatic sync setup (GitHub Actions)
+  - Manual script execution methods
+  - Monitoring and troubleshooting
+  - Full pipeline example
+
+- **`notebooks/QUICKSTART.md`**: Quick start guide for EMR Notebooks (alternative workflow)
+- **`notebooks/README.md`**: Comprehensive notebook setup guide
+
+### 📁 Infrastructure
+
+- **`terraform/`**: Infrastructure as Code for AWS EMR cluster
+  - `main.tf`: EMR cluster configuration with Spark and Hadoop
+  - `iam.tf`: IAM roles and policies (service role, EC2 role, auto-scaling)
+  - `security_groups.tf`: Network security for master and core nodes
+  - `variables.tf`: Configurable parameters (instance types, region, etc.)
+  - `outputs.tf`: Cluster ID, connection details, and helpful commands
+  - `terraform.tfvars.example`: Example configuration file
+  - `README.md`: Comprehensive Terraform documentation
+
+## Workflow
+
+### Development → Deployment → Execution
+
+```
+1. (One-time) Upload CSV to S3: ./scripts/upload_csv_to_s3.sh ~/Downloads/land_registry_data.csv
+2. (One-time) Convert CSV to Parquet: ./scripts/run_on_emr.sh land_registry_ingestion.py <cluster-id>
+3. Edit scripts locally (src/*.py)
+4. Push to GitHub (main branch)
+5. GitHub Actions syncs to S3 automatically
+6. Run on EMR: ./scripts/run_on_emr.sh transaction_groupby.py <cluster-id>
+7. Download results from S3
+8. Run local post-processing (qa_groupby_data.py, geospatial_merge.py)
+9. Launch Streamlit dashboard
+```
+
+See **[EMR Workflow Guide](docs/EMR_WORKFLOW.md)** for detailed instructions.
 
