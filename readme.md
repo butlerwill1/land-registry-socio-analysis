@@ -15,9 +15,9 @@ This project uses a **script-based workflow** with automated deployment to AWS E
 
 **Quick Start:**
 1. Deploy EMR cluster: `cd terraform && terraform apply`
-2. Edit Python scripts in `src/`
-3. Push to GitHub → Scripts auto-sync to S3
-4. Run on EMR: `./scripts/run_on_emr.sh transaction_groupby.py <cluster-id>`
+2. Upload raw data: `./scripts/upload_to_bronze.sh ~/Downloads/land_registry_data.csv`
+3. Convert to Parquet: `./scripts/run_on_emr.sh bronze_to_silver.py <cluster-id>`
+4. Run aggregations: `./scripts/run_on_emr.sh silver_to_gold.py <cluster-id>`
 
 📖 **[Read the EMR Workflow Guide](docs/EMR_WORKFLOW.md)** for detailed instructions.
 
@@ -42,6 +42,7 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 - **Price Paid HM Land Registry**: Sales prices of properties in England and Wales from 1995. The file is around 5Gb and can be downloaded [here](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) Read more in the LandRegistryDataDoc.md file.
 - **Postcode District Polygons**: Polygons in shapely format defining Postcode Areas, Districts and Sectors can be downloaded
 [here](https://datashare.ed.ac.uk/handle/10283/2597). From Edinburgh DataShare.
+- **England Polygons**: Polygons to match onto the socio econmic xlsx file 
 - **English Indices of Deprivation - Socio-economic Data** [Statistics](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019) on relative deprivation in small areas in England. Gives the statistics in a shapely file. Read more in the SocioEconomicDataDoc.md file.
 
 ## Built With
@@ -55,22 +56,40 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 
 ## Project Structure
 
+This project follows the **Medallion Architecture** pattern (Bronze → Silver → Gold) for data processing:
+
+```
+src/
+├── bronze/          # (empty - raw data ingestion handled by scripts/)
+├── silver/          # Data transformation (EMR/PySpark)
+│   ├── bronze_to_silver.py
+│   └── pyspark_functions.py
+├── gold/            # Aggregations (EMR/PySpark)
+│   └── silver_to_gold.py
+├── local/           # Local processing (Pandas/GeoPandas)
+│   ├── preprocessing_qa.py
+│   ├── geospatial_merge.py
+│   ├── qa_groupby_data.py
+│   └── local_utils.py
+└── dashboard/       # Visualization
+    └── streamlit_dash.py
+```
+
 ### 📁 Core Python Scripts (`src/`)
 
-#### PySpark Scripts (Run on EMR)
-- **`land_registry_ingestion.py`**: CSV to Parquet conversion (one-time setup)
+#### Bronze Layer (Raw Data)
+- **Upload Script**: `scripts/upload_to_bronze.sh`
+  - Uploads raw CSV to `s3://landregistryproject/bronze/`
+  - Handles large files (5GB+) using AWS CLI multipart upload
+
+#### Silver Layer (Cleaned & Partitioned Data)
+- **`bronze_to_silver.py`**: CSV to Parquet conversion (one-time setup)
   - Converts raw 5GB CSV to optimized Snappy-compressed Parquet (.snappy.parquet)
   - Partitions data by year for efficient querying
   - Performs data quality checks during conversion
   - Achieves ~2-3x compression ratio
   - Automatically deletes original CSV after successful verification
-  - Outputs: `land_registry_data.parquet/` (partitioned by year)
-
-- **`transaction_groupby.py`**: Main aggregation pipeline that processes the full 5GB Land Registry dataset
-  - Groups transactions by postcode district, property type, and year
-  - Calculates comprehensive price statistics (mean, median, percentiles, skewness, kurtosis)
-  - Computes year-over-year price changes and rolling averages
-  - Outputs: `area_pct_change.csv`, `district_pct_change.csv`, `sector_pct_change.csv`
+  - Outputs: `s3://landregistryproject/silver/land_registry_data.parquet/` (partitioned by year)
 
 - **`pyspark_functions.py`**: Utility functions for PySpark processing
   - Postcode parsing and geographic classification (London detection)
@@ -78,35 +97,45 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
   - Time-series analysis (rolling averages, percentage changes)
   - Data quality assessment functions
 
+#### Gold Layer (Aggregated Data)
+- **`silver_to_gold.py`**: Main aggregation pipeline that processes the full dataset
+  - Groups transactions by postcode district, property type, and year
+  - Calculates comprehensive price statistics (mean, median, percentiles, skewness, kurtosis)
+  - Computes year-over-year price changes and rolling averages
+  - Outputs: `s3://landregistryproject/gold/area_pct_change.csv/`, `district_pct_change.csv/`, `sector_pct_change.csv/`
+
 #### Local Processing Scripts (Run on your machine)
-- **`preprocessing_qa.py`**: Data quality assurance for raw datasets
+- **`local/preprocessing_qa.py`**: Data quality assurance for raw datasets
   - Validates Land Registry data (postcodes, prices, dates)
   - Checks geospatial polygon validity
   - Repairs invalid geometries using buffer(0) method
   - Ensures data integrity before PySpark processing
 
-- **`qa_groupby_data.py`**: Prepares PySpark output for visualization
+- **`local/qa_groupby_data.py`**: Prepares Gold layer output for visualization
+  - Downloads Gold CSVs from S3
   - Filters low-quality samples (insufficient transaction counts)
   - Calculates 5-year rolling average price changes
   - Sorts by price increase for hotspot identification
   - Exports cleaned datasets for Streamlit dashboard
 
-- **`geospatial_merge.py`**: Merges transaction data with socio-economic indicators
+- **`local/geospatial_merge.py`**: Merges transaction data with socio-economic indicators
+  - Downloads Gold layer CSVs from S3
   - Performs spatial joins (LSOA polygons within postcode districts)
   - Aggregates socio-economic data to postcode district level
   - Merges with transaction statistics
   - Outputs: `district_groupby_socio_economic.gpkg` for visualization
 
-- **`streamlit_dash.py`**: Interactive dashboard for data exploration
+- **`local/local_utils.py`**: General utility functions for local processing
+  - Data cleaning and preprocessing helpers
+  - Postcode validation and formatting
+  - Socio-economic column name standardization
+
+#### Dashboard
+- **`dashboard/streamlit_dash.py`**: Interactive dashboard for data exploration
   - Interactive maps with property price overlays
   - Time-series charts for price trends
   - Filters for property type, region, and year
   - Socio-economic indicator comparisons
-
-- **`functions.py`**: General utility functions
-  - Data cleaning and preprocessing helpers
-  - Postcode validation and formatting
-  - Socio-economic column name standardization
 
 ### 📁 Automation & Deployment
 
@@ -115,17 +144,21 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
   - Triggered on changes to Python scripts
   - Ensures EMR always runs latest code version
 
-- **`scripts/upload_csv_to_s3.sh`**: Upload large CSV files to S3
+- **`scripts/upload_to_bronze.sh`**: Upload large CSV files to Bronze layer
   - Handles files larger than 5GB (AWS Console UI limit)
   - Uses AWS CLI multipart upload
   - Shows progress during upload
-  - Usage: `./scripts/upload_csv_to_s3.sh ~/Downloads/land_registry_data.csv`
+  - Uploads to: `s3://landregistryproject/bronze/`
+  - Usage: `./scripts/upload_to_bronze.sh ~/Downloads/land_registry_data.csv`
 
 - **`scripts/run_on_emr.sh`**: Helper script for EMR job submission
+  - Automatically detects script location (silver/ or gold/)
   - Uploads script to S3
-  - Automatically uploads dependencies
-  - Submits EMR step and provides monitoring commands
-  - Usage: `./scripts/run_on_emr.sh transaction_groupby.py <cluster-id>`
+  - Automatically uploads dependencies (e.g., pyspark_functions.py)
+  - Submits EMR step with `--py-files` for dependencies
+  - Provides monitoring commands
+  - Usage: `./scripts/run_on_emr.sh bronze_to_silver.py <cluster-id>`
+  - Usage: `./scripts/run_on_emr.sh silver_to_gold.py <cluster-id>`
 
 ### 📁 Documentation
 

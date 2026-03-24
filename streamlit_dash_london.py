@@ -6,7 +6,13 @@ import geopandas as gpd
 from streamlit_folium import st_folium
 import altair as alt
 import pandas as pd
-import src.functions as func
+import sys
+import os
+
+# Import local utilities from src/local/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src', 'local'))
+import local_utils as func
+
 st.set_page_config(layout="wide")
 import branca.colormap as cm
 #%%-----------------------------------------------------------------------------------------------------

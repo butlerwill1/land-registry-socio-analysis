@@ -24,7 +24,6 @@ set -e  # Exit on error
 # Configuration
 S3_BUCKET="s3://landregistryproject"
 S3_SCRIPTS_PATH="${S3_BUCKET}/scripts"
-LOCAL_SCRIPTS_DIR="src"
 AWS_REGION="eu-west-2"  # Match EMR cluster region
 
 # Colors for output
@@ -51,18 +50,47 @@ if [ $# -lt 2 ]; then
     print_error "Usage: $0 <script_name> <cluster_id>"
     echo ""
     echo "Examples:"
-    echo "  $0 transaction_groupby.py j-XXXXXXXXXXXXX"
-    echo "  $0 preprocessing_qa.py j-XXXXXXXXXXXXX"
+    echo "  $0 bronze_to_silver.py j-XXXXXXXXXXXXX"
+    echo "  $0 silver_to_gold.py j-XXXXXXXXXXXXX"
     exit 1
 fi
 
 SCRIPT_NAME=$1
 CLUSTER_ID=$2
 
+# Determine script location based on name
+case "$SCRIPT_NAME" in
+    bronze_to_silver.py)
+        LOCAL_SCRIPTS_DIR="src/silver"
+        ;;
+    silver_to_gold.py)
+        LOCAL_SCRIPTS_DIR="src/gold"
+        ;;
+    *)
+        # Default to searching in all subdirectories
+        print_warning "Unknown script name. Searching in src/ subdirectories..."
+        if [ -f "src/silver/${SCRIPT_NAME}" ]; then
+            LOCAL_SCRIPTS_DIR="src/silver"
+        elif [ -f "src/gold/${SCRIPT_NAME}" ]; then
+            LOCAL_SCRIPTS_DIR="src/gold"
+        elif [ -f "src/local/${SCRIPT_NAME}" ]; then
+            print_error "Script ${SCRIPT_NAME} is in src/local/ - this should be run locally, not on EMR"
+            exit 1
+        else
+            print_error "Script not found in any src/ subdirectory"
+            exit 1
+        fi
+        ;;
+esac
+
 # Validate script exists
 SCRIPT_PATH="${LOCAL_SCRIPTS_DIR}/${SCRIPT_NAME}"
 if [ ! -f "$SCRIPT_PATH" ]; then
     print_error "Script not found: $SCRIPT_PATH"
+    echo ""
+    echo "Available EMR scripts:"
+    echo "  src/silver/bronze_to_silver.py"
+    echo "  src/gold/silver_to_gold.py"
     exit 1
 fi
 
@@ -80,20 +108,42 @@ else
 fi
 
 # Check if pyspark_functions.py is needed and upload it
+PY_FILES_ARG=""
 if grep -q "import pyspark_functions" "$SCRIPT_PATH"; then
     print_info "Script imports pyspark_functions.py, uploading dependency..."
-    aws s3 cp "${LOCAL_SCRIPTS_DIR}/pyspark_functions.py" "${S3_SCRIPTS_PATH}/pyspark_functions.py"
-    print_info "✓ Uploaded pyspark_functions.py"
+
+    # Determine where pyspark_functions.py is located (same directory as the script)
+    SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
+    PYSPARK_FUNCS_PATH="${SCRIPT_DIR}/pyspark_functions.py"
+
+    if [ -f "$PYSPARK_FUNCS_PATH" ]; then
+        aws s3 cp "$PYSPARK_FUNCS_PATH" "${S3_SCRIPTS_PATH}/pyspark_functions.py"
+        print_info "✓ Uploaded pyspark_functions.py from ${SCRIPT_DIR}/"
+        PY_FILES_ARG="--py-files,${S3_SCRIPTS_PATH}/pyspark_functions.py,"
+    else
+        print_warning "pyspark_functions.py not found at $PYSPARK_FUNCS_PATH"
+    fi
 fi
 
 # Submit EMR step
 print_info "Submitting EMR step..."
-STEP_ID=$(aws emr add-steps \
-    --region "$AWS_REGION" \
-    --cluster-id "$CLUSTER_ID" \
-    --steps Type=Spark,Name="Run ${SCRIPT_NAME}",ActionOnFailure=CONTINUE,Args=[--deploy-mode,client,--master,yarn,${S3_SCRIPTS_PATH}/${SCRIPT_NAME}] \
-    --query 'StepIds[0]' \
-    --output text)
+
+# Build Args array based on whether we have py-files
+if [ -n "$PY_FILES_ARG" ]; then
+    STEP_ID=$(aws emr add-steps \
+        --region "$AWS_REGION" \
+        --cluster-id "$CLUSTER_ID" \
+        --steps Type=Spark,Name="Run ${SCRIPT_NAME}",ActionOnFailure=CONTINUE,Args=[--deploy-mode,client,--master,yarn,${PY_FILES_ARG}${S3_SCRIPTS_PATH}/${SCRIPT_NAME}] \
+        --query 'StepIds[0]' \
+        --output text)
+else
+    STEP_ID=$(aws emr add-steps \
+        --region "$AWS_REGION" \
+        --cluster-id "$CLUSTER_ID" \
+        --steps Type=Spark,Name="Run ${SCRIPT_NAME}",ActionOnFailure=CONTINUE,Args=[--deploy-mode,client,--master,yarn,${S3_SCRIPTS_PATH}/${SCRIPT_NAME}] \
+        --query 'StepIds[0]' \
+        --output text)
+fi
 
 if [ $? -eq 0 ]; then
     print_info "✓ Step submitted successfully"

@@ -6,8 +6,6 @@
 *.qml
 *.qpj
 *.shx
-English_IMD_2019/
-GB_Postcodes/
 *.sql
 *.pyc
 *.DS_Store
@@ -30,3 +28,9 @@ District_Transaction_Groupby%.csv
 
 # EMR Notebooks
 .sparkmagic/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
