@@ -91,7 +91,7 @@ print_info "Submitting EMR step..."
 STEP_ID=$(aws emr add-steps \
     --region "$AWS_REGION" \
     --cluster-id "$CLUSTER_ID" \
-    --steps Type=Spark,Name="Run ${SCRIPT_NAME}",ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,${S3_SCRIPTS_PATH}/${SCRIPT_NAME}] \
+    --steps Type=Spark,Name="Run ${SCRIPT_NAME}",ActionOnFailure=CONTINUE,Args=[--deploy-mode,client,--master,yarn,${S3_SCRIPTS_PATH}/${SCRIPT_NAME}] \
     --query 'StepIds[0]' \
     --output text)
 

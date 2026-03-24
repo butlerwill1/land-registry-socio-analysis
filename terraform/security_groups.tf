@@ -10,7 +10,10 @@ resource "aws_security_group" "emr_master" {
   name        = "${var.cluster_name}-master-sg"
   description = "Security group for EMR master node"
   vpc_id      = data.aws_vpc.default.id
-  
+
+  # Automatically revoke all rules before deleting to avoid circular dependency issues
+  revoke_rules_on_delete = true
+
   tags = {
     Name = "EMR Master Security Group"
   }
@@ -59,7 +62,10 @@ resource "aws_security_group" "emr_slave" {
   name        = "${var.cluster_name}-slave-sg"
   description = "Security group for EMR slave nodes"
   vpc_id      = data.aws_vpc.default.id
-  
+
+  # Automatically revoke all rules before deleting to avoid circular dependency issues
+  revoke_rules_on_delete = true
+
   tags = {
     Name = "EMR Slave Security Group"
   }
