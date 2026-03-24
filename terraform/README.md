@@ -4,32 +4,43 @@ This directory contains Terraform configuration for provisioning AWS infrastruct
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         AWS Cloud                            │
-│                                                              │
-│  ┌──────────────┐      ┌─────────────────────────────────┐ │
-│  │  S3 Bucket   │◄─────┤      EMR Cluster                │ │
-│  │              │      │                                  │ │
-│  │ - raw/       │      │  ┌──────────┐  ┌──────────┐    │ │
-│  │ - scripts/   │      │  │  Master  │  │  Core 1  │    │ │
-│  │ - processed/ │      │  │  Node    │  │  Node    │    │ │
-│  │ - results/   │      │  └──────────┘  └──────────┘    │ │
-│  └──────────────┘      │                                  │ │
-│                        │  ┌──────────┐                   │ │
-│  ┌──────────────┐      │  │  Core 2  │                   │ │
-│  │  IAM Roles   │◄─────┤  │  Node    │                   │ │
-│  │              │      │  └──────────┘                   │ │
-│  │ - Service    │      │                                  │ │
-│  │ - EC2        │      │  Spark 3.4 + Hadoop 3.3         │ │
-│  │ - AutoScale  │      └─────────────────────────────────┘ │
-│  └──────────────┘                                          │
-│                                                              │
-│  ┌──────────────┐                                          │
-│  │ Security     │                                          │
-│  │ Groups       │                                          │
-│  └──────────────┘                                          │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph AWS["AWS Cloud"]
+        subgraph S3["S3 Bucket<br/>landregistryproject"]
+            Bronze["bronze/<br/>Raw CSV"]
+            Silver["silver/<br/>Parquet"]
+            Gold["gold/<br/>Aggregated CSV"]
+            Scripts["scripts/<br/>Python files"]
+        end
+
+        subgraph EMR["EMR Cluster<br/>Spark 3.4 + Hadoop 3.3"]
+            Master["Master Node<br/>m5.xlarge<br/>4 vCPU, 16 GB"]
+            Core1["Core Node 1<br/>m5.xlarge<br/>4 vCPU, 16 GB"]
+            Core2["Core Node 2<br/>m5.xlarge<br/>4 vCPU, 16 GB"]
+        end
+
+        subgraph IAM["IAM Roles"]
+            ServiceRole["EMR Service Role"]
+            EC2Role["EMR EC2 Role"]
+            AutoScaleRole["EMR AutoScale Role"]
+        end
+
+        subgraph SG["Security Groups"]
+            MasterSG["Master SG"]
+            CoreSG["Core/Task SG"]
+        end
+
+        EMR -->|Read/Write| S3
+        EMR -.->|Uses| IAM
+        EMR -.->|Protected by| SG
+    end
+
+    style S3 fill:#FF9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    style EMR fill:#527FFF,stroke:#232F3E,stroke-width:2px,color:#fff
+    style IAM fill:#DD344C,stroke:#232F3E,stroke-width:2px,color:#fff
+    style SG fill:#7AA116,stroke:#232F3E,stroke-width:2px,color:#fff
+    style AWS fill:#232F3E,stroke:#232F3E,stroke-width:3px,color:#fff
 ```
 
 ## Resources Created
@@ -39,6 +50,66 @@ This directory contains Terraform configuration for provisioning AWS infrastruct
 - **EMR Cluster**: Spark cluster for data processing
 - **IAM Roles**: Service role, EC2 role, and auto-scaling role
 - **Security Groups**: Network security for master and core nodes
+
+### IAM Roles Explained
+
+EMR requires three distinct IAM roles, each serving a specific purpose:
+
+#### 1. EMR Service Role (`emr-land-registry-service-role`)
+**Purpose**: Allows the EMR service itself to manage cluster resources on your behalf.
+
+**What it does**:
+- Provisions and terminates EC2 instances for the cluster
+- Configures security groups and network settings
+- Manages cluster lifecycle (start, stop, resize)
+- Monitors cluster health and performance
+
+**Permissions**:
+- Uses AWS managed policy: `AmazonElasticMapReduceRole`
+- Can create/modify EC2 instances, security groups, and EBS volumes
+- Can access CloudWatch for monitoring
+
+**Trust relationship**: Only the `elasticmapreduce.amazonaws.com` service can assume this role.
+
+#### 2. EMR EC2 Instance Role (`emr-land-registry-ec2-role`)
+**Purpose**: Grants permissions to the EC2 instances (master and core nodes) running in your cluster.
+
+**What it does**:
+- Allows Spark jobs to read/write data to S3
+- Enables applications running on the cluster to access AWS services
+- Streams logs to CloudWatch for debugging
+- Executes your PySpark scripts with appropriate permissions
+
+**Permissions**:
+- Uses AWS managed policy: `AmazonElasticMapReduceforEC2Role`
+- Custom S3 policy for your data bucket:
+  - `s3:GetObject` - Read files from S3
+  - `s3:PutObject` - Write results to S3
+  - `s3:DeleteObject` - Clean up temporary files
+  - `s3:ListBucket` - List bucket contents
+- CloudWatch Logs access for log streaming
+
+**Trust relationship**: Only EC2 instances can assume this role (via instance profile).
+
+**Note**: This is the role your Spark jobs run under - it needs access to your data!
+
+#### 3. EMR Auto Scaling Role (`emr-land-registry-autoscaling-role`)
+**Purpose**: Enables automatic scaling of core and task nodes based on workload.
+
+**What it does**:
+- Monitors cluster metrics (CPU, memory, pending tasks)
+- Adds nodes when workload increases
+- Removes nodes when workload decreases
+- Optimizes costs by scaling down during idle periods
+
+**Permissions**:
+- Uses AWS managed policy: `AmazonElasticMapReduceforAutoScalingRole`
+- Can modify EMR cluster capacity
+- Can read CloudWatch metrics to make scaling decisions
+
+**Trust relationship**: Both `elasticmapreduce.amazonaws.com` and `application-autoscaling.amazonaws.com` can assume this role.
+
+**Note**: Only used if you enable auto-scaling in your cluster configuration.
 
 ### Default Configuration
 - **Region**: eu-west-2 (London)
@@ -122,48 +193,7 @@ terraform/
 └── README.md                  # This file
 ```
 
-## Configuration Options
-
-### Instance Types
-
-| Type | vCPU | RAM | Use Case | Cost/Hour* |
-|------|------|-----|----------|------------|
-| m5.large | 2 | 8 GB | Development | ~$0.10 |
-| m5.xlarge | 4 | 16 GB | Standard | ~$0.20 |
-| m5.2xlarge | 8 | 32 GB | Production | ~$0.40 |
-| m5.4xlarge | 16 | 64 GB | Large datasets | ~$0.80 |
-
-*Approximate costs for eu-west-2 region
-
-### Cost Optimization
-
-**Development Setup** (Lower cost):
-```hcl
-master_instance_type = "m5.large"
-core_instance_type   = "m5.large"
-core_instance_count  = 1
-auto_terminate_idle_seconds = 3600  # Auto-terminate after 1 hour
-```
-
-**Production Setup** (Better performance):
-```hcl
-master_instance_type = "m5.2xlarge"
-core_instance_type   = "m5.2xlarge"
-core_instance_count  = 4
-keep_cluster_alive   = false  # Terminate after jobs
-```
-
 ## Usage Examples
-
-### Run Preflight Check
-
-```bash
-# Get cluster ID
-CLUSTER_ID=$(terraform output -raw emr_cluster_id)
-
-# Run preflight check
-../scripts/preflight_check.sh $CLUSTER_ID
-```
 
 ### Run Ingestion Script
 
@@ -175,32 +205,7 @@ CLUSTER_ID=$(terraform output -raw emr_cluster_id)
 ../scripts/run_on_emr.sh land_registry_ingestion.py $CLUSTER_ID
 ```
 
-### SSH to Master Node
-
-```bash
-# Enable SSH in terraform.tfvars:
-# allow_ssh = true
-# ssh_cidr_blocks = ["YOUR_IP/32"]
-
-# Apply changes
-terraform apply
-
-# SSH to master
-terraform output -raw ssh_command
-```
-
 ## Maintenance
-
-### Update Cluster
-
-```bash
-# Modify terraform.tfvars or *.tf files
-# Review changes
-terraform plan
-
-# Apply changes
-terraform apply
-```
 
 ### Destroy Infrastructure
 
@@ -236,14 +241,6 @@ aws iam get-role --role-name emr-land-registry-ec2-role
 **Solution**: Check CloudWatch logs or EMR console for details
 ```bash
 aws emr describe-cluster --cluster-id j-XXXXXXXXXXXXX
-```
-
-### Issue: "S3 bucket already exists"
-
-**Solution**: Either use existing bucket or choose different name
-```hcl
-# In terraform.tfvars
-s3_bucket_name = "landregistryproject-yourname"
 ```
 
 ## Security Best Practices
