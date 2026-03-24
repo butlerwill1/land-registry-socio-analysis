@@ -25,6 +25,7 @@ set -e  # Exit on error
 S3_BUCKET="s3://landregistryproject"
 S3_SCRIPTS_PATH="${S3_BUCKET}/scripts"
 LOCAL_SCRIPTS_DIR="src"
+AWS_REGION="eu-west-2"  # Match EMR cluster region
 
 # Colors for output
 RED='\033[0;31m'
@@ -88,6 +89,7 @@ fi
 # Submit EMR step
 print_info "Submitting EMR step..."
 STEP_ID=$(aws emr add-steps \
+    --region "$AWS_REGION" \
     --cluster-id "$CLUSTER_ID" \
     --steps Type=Spark,Name="Run ${SCRIPT_NAME}",ActionOnFailure=CONTINUE,Args=[--deploy-mode,cluster,--master,yarn,${S3_SCRIPTS_PATH}/${SCRIPT_NAME}] \
     --query 'StepIds[0]' \
@@ -99,10 +101,10 @@ if [ $? -eq 0 ]; then
     print_info "Cluster ID: $CLUSTER_ID"
     echo ""
     print_info "Monitor step status with:"
-    echo "  aws emr describe-step --cluster-id $CLUSTER_ID --step-id $STEP_ID"
+    echo "  aws emr describe-step --region $AWS_REGION --cluster-id $CLUSTER_ID --step-id $STEP_ID"
     echo ""
     print_info "View logs in AWS Console:"
-    echo "  https://console.aws.amazon.com/emr/home?region=eu-west-2#/clusterDetails/$CLUSTER_ID"
+    echo "  https://console.aws.amazon.com/emr/home?region=$AWS_REGION#/clusterDetails/$CLUSTER_ID"
 else
     print_error "Failed to submit EMR step"
     exit 1
@@ -113,10 +115,10 @@ read -p "Wait for step to complete? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     print_info "Waiting for step to complete..."
-    aws emr wait step-complete --cluster-id "$CLUSTER_ID" --step-id "$STEP_ID"
-    
+    aws emr wait step-complete --region "$AWS_REGION" --cluster-id "$CLUSTER_ID" --step-id "$STEP_ID"
+
     # Get final status
-    STATUS=$(aws emr describe-step --cluster-id "$CLUSTER_ID" --step-id "$STEP_ID" --query 'Step.Status.State' --output text)
+    STATUS=$(aws emr describe-step --region "$AWS_REGION" --cluster-id "$CLUSTER_ID" --step-id "$STEP_ID" --query 'Step.Status.State' --output text)
     
     if [ "$STATUS" == "COMPLETED" ]; then
         print_info "✓ Step completed successfully!"

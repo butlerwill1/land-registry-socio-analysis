@@ -70,6 +70,12 @@ resource "aws_iam_role_policy_attachment" "emr_ec2_role" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role"
 }
 
+# Attach CloudWatch Logs policy for log streaming
+resource "aws_iam_role_policy_attachment" "emr_ec2_cloudwatch" {
+  role       = aws_iam_role.emr_ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+}
+
 # Custom policy for S3 access
 resource "aws_iam_role_policy" "emr_ec2_s3_access" {
   name   = "s3-access"
@@ -90,8 +96,8 @@ data "aws_iam_policy_document" "emr_ec2_s3_access" {
     ]
     
     resources = [
-      aws_s3_bucket.data_bucket.arn,
-      "${aws_s3_bucket.data_bucket.arn}/*"
+      data.aws_s3_bucket.data_bucket.arn,
+      "${data.aws_s3_bucket.data_bucket.arn}/*"
     ]
   }
   

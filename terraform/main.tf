@@ -65,43 +65,28 @@ data "aws_subnets" "default" {
 }
 
 ################################################################################
-# S3 Bucket
+# S3 Bucket (Reference Only - Not Managed by Terraform)
 ################################################################################
 
-resource "aws_s3_bucket" "data_bucket" {
+# Reference existing S3 bucket (Terraform will never destroy this)
+# The bucket exists independently and persists after `terraform destroy`
+data "aws_s3_bucket" "data_bucket" {
   bucket = var.s3_bucket_name
-  
+}
+
+################################################################################
+# CloudWatch Log Group for EMR
+################################################################################
+
+resource "aws_cloudwatch_log_group" "emr_logs" {
+  count             = var.enable_cloudwatch_logs ? 1 : 0
+  name              = "/aws/emr/${var.cluster_name}"
+  retention_in_days = var.cloudwatch_log_retention_days
+
   tags = {
-    Name = "Land Registry Data Bucket"
+    Name        = "EMR Cluster Logs"
+    Environment = var.environment
   }
-}
-
-resource "aws_s3_bucket_versioning" "data_bucket" {
-  bucket = aws_s3_bucket.data_bucket.id
-  
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "data_bucket" {
-  bucket = aws_s3_bucket.data_bucket.id
-  
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-# Block public access
-resource "aws_s3_bucket_public_access_block" "data_bucket" {
-  bucket = aws_s3_bucket.data_bucket.id
-  
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
 }
 
 ################################################################################
@@ -112,8 +97,14 @@ resource "aws_emr_cluster" "land_registry" {
   name          = var.cluster_name
   release_label = var.emr_release_label
   applications  = ["Spark", "Hadoop", "JupyterEnterpriseGateway", "Livy"]
-  
+
   service_role = aws_iam_role.emr_service_role.arn
+
+  # Enable logging to S3 (long-term storage, free)
+  log_uri = "s3://${data.aws_s3_bucket.data_bucket.id}/logs/"
+
+  # Enable step concurrency (optional - run multiple steps in parallel)
+  step_concurrency_level = 1
   
   ec2_attributes {
     instance_profile = aws_iam_instance_profile.emr_ec2_instance_profile.arn
@@ -152,15 +143,20 @@ resource "aws_emr_cluster" "land_registry" {
   
   # Termination protection
   termination_protection = var.termination_protection
-  
+
   # Auto-termination after idle time (optional)
-  auto_termination_policy {
-    idle_timeout = var.auto_terminate_idle_seconds
+  # Only add this block if auto_terminate_idle_seconds is set (>= 60)
+  dynamic "auto_termination_policy" {
+    for_each = var.auto_terminate_idle_seconds >= 60 ? [1] : []
+    content {
+      idle_timeout = var.auto_terminate_idle_seconds
+    }
   }
-  
+
   tags = {
-    Name    = var.cluster_name
-    Purpose = "data-processing"
+    Name        = var.cluster_name
+    Purpose     = "data-processing"
+    Environment = var.environment
   }
 }
 

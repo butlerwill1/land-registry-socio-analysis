@@ -94,6 +94,18 @@ variable "auto_terminate_idle_seconds" {
   default     = 0  # Disabled by default
 }
 
+variable "enable_cloudwatch_logs" {
+  description = "Enable CloudWatch logs for real-time log streaming"
+  type        = bool
+  default     = true
+}
+
+variable "cloudwatch_log_retention_days" {
+  description = "Number of days to retain CloudWatch logs"
+  type        = number
+  default     = 7  # 7 days retention
+}
+
 ################################################################################
 # Security Configuration
 ################################################################################

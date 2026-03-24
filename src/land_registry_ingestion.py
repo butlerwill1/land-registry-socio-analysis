@@ -103,7 +103,7 @@ def get_land_registry_schema():
         StructField("saon", StringType(), True),
         StructField("street", StringType(), True),
         StructField("locality", StringType(), True),
-        StructField("town/city", StringType(), True),
+        StructField("town_city", StringType(), True),  # Fixed: removed "/" from column name
         StructField("district", StringType(), True),
         StructField("county", StringType(), True),
         StructField("ppd_category", StringType(), True),
@@ -120,33 +120,37 @@ def get_land_registry_schema():
 def load_csv_data(spark, csv_path, schema):
     """
     Load Land Registry CSV data from S3 with schema validation.
-    
+
     Args:
         spark (SparkSession): Active Spark session
         csv_path (str): S3 path to CSV file
         schema (StructType): Data schema
-    
+
     Returns:
-        DataFrame: Loaded data
+        tuple: (DataFrame, row_count) - Loaded data and row count
     """
     print(f"\n--- Loading CSV Data ---")
     print(f"  Source: {csv_path}")
-    
+
     start_time = time.time()
-    
+
     df = spark.read.csv(
         csv_path,
         header=False,  # Land Registry data has no header
         schema=schema,
         mode="DROPMALFORMED"  # Skip malformed rows
     )
-    
+
+    # Cache the DataFrame since we'll perform multiple actions on it
+    df.cache()
+
     row_count = df.count()
     elapsed = time.time() - start_time
-    
-    print(f"  ✓ Loaded {row_count:,} rows in {elapsed:.1f} seconds")
 
-    return df
+    print(f"  ✓ Loaded {row_count:,} rows in {elapsed:.1f} seconds")
+    print(f"  ✓ DataFrame cached for efficient reuse")
+
+    return df, row_count
 
 
 # ============================================================================
@@ -188,11 +192,13 @@ def perform_quality_checks(df):
 
     # Check 4: Date range
     print("\n  4. Date range:")
-    date_range = df.select(col('date_transfer')).agg(
-        {'date_transfer': 'min', 'date_transfer': 'max'}
+    from pyspark.sql.functions import min as spark_min, max as spark_max
+    date_range = df.select(
+        spark_min('date_transfer').alias('min_date'),
+        spark_max('date_transfer').alias('max_date')
     ).collect()[0]
-    print(f"     Earliest: {date_range['min(date_transfer)']}")
-    print(f"     Latest: {date_range['max(date_transfer)']}")
+    print(f"     Earliest: {date_range['min_date']}")
+    print(f"     Latest: {date_range['max_date']}")
 
     print("\n  ✓ Quality checks complete")
 
@@ -375,9 +381,8 @@ def main():
         # Step 2: Define schema
         schema = get_land_registry_schema()
 
-        # Step 3: Load CSV data
-        df = load_csv_data(spark, CSV_PATH, schema)
-        original_count = df.count()
+        # Step 3: Load CSV data (returns DataFrame and count)
+        df, original_count = load_csv_data(spark, CSV_PATH, schema)
 
         # Step 4: Perform quality checks
         perform_quality_checks(df)
@@ -387,6 +392,9 @@ def main():
 
         # Step 6: Write Parquet
         write_parquet(df, PARQUET_PATH)
+
+        # Unpersist cache after writing (free up memory)
+        df.unpersist()
 
         # Step 7: Verify conversion
         success = verify_conversion(spark, PARQUET_PATH, original_count)
@@ -417,7 +425,7 @@ def main():
         print(f"\nOutput location: {PARQUET_PATH}")
         print(f"\nNext steps:")
         print(f"  1. Check file sizes:")
-        print(f"     aws s3 ls --summarize --human-readable --recursive s3://landregistryproject/land_registry_data.parquet/")
+        print(f"     aws s3 ls --summarize --human-readable --recursive s3://landregistryproject/silver/land_registry_data.parquet/")
         print(f"  2. Use Parquet file in transaction_groupby.py")
         print(f"  3. Query specific years using partition pruning")
 
