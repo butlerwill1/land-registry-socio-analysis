@@ -1,3 +1,69 @@
+"""
+London Land Registry Socio-Economic Analysis Dashboard (Flats Only)
+
+This Streamlit application provides an interactive dashboard for analyzing London FLAT
+transaction data combined with socio-economic indicators. The dashboard features an
+interactive map, price trend visualizations, and comparative analysis tools.
+
+NOTE: This dashboard is filtered to show FLATS ONLY.
+
+Features:
+---------
+- Interactive map with two modes:
+  1. Area Investigation: Explore specific postcode districts with lower-level socio-economic areas
+  2. Choropleth: Visualize any numeric variable across all districts with color-coded mapping
+- Price trend analysis over time by postcode district
+- Property type transaction distribution
+- Customizable scatter plots for exploring relationships between variables
+- Tooltips showing detailed metrics for both district-level and lower-level geographic areas
+
+Input Files:
+------------
+1. district_geometry_london_flats.gpkg (layer: 'socio')
+   - GeoPackage containing district geometry and static socio-economic data
+   - One row per postcode district (no time-series)
+   - Includes 2025 socio-economic data aggregated to district level
+   - Contains geometry for postcode district boundaries
+
+2. district_transactions_london_flats.csv
+   - CSV file with FLAT transaction time-series data (multiple years per district)
+   - Contains yearly transaction statistics from 1995 to 2026
+   - NO geometry (joined with file #1 in the app)
+
+3. socio_economic_postcode_london_flats.gpkg (layer: 'socio')
+   - GeoPackage with 2025 socio-economic data at LSOA (Lower Layer Super Output Area) level
+   - Contains polygons for lower-level areas within postcode districts with flats
+   - Includes metrics like crime scores, education scores, environment scores, etc.
+
+4. district_groupby_price_graph_london_flats.csv
+   - CSV file with average FLAT prices by year for each postcode district
+   - Used for time-series price trend visualization
+   - Contains Flat price data from 1995 to 2026
+
+5. property_type_groupby_london_flats.csv
+   - CSV file with FLAT transaction counts by postcode district
+   - Used for property type distribution analysis
+   - Aggregated across all years (Flats only)
+
+Dependencies:
+-------------
+- streamlit: Web application framework
+- folium: Interactive map visualization
+- geopandas: Geospatial data handling
+- streamlit_folium: Streamlit-Folium integration
+- altair: Interactive chart creation
+- pandas: Data manipulation
+- branca: Color mapping for choropleth
+- local_utils: Custom utility functions from 2_local_processing/
+
+Notes:
+------
+- Higher socio-economic scores indicate greater social problems (e.g., high crime score = more crime)
+- Transaction data is aggregated to postcode district level (e.g., SW11, E4)
+- Socio-economic data (2025 IMD) is measured on LSOA level within districts
+- OPTIMIZATION: Geometry and time-series data are stored separately and merged on load
+  to reduce file size from 129 MB to ~3-4 MB (97% reduction)
+"""
 #%%
 import streamlit as st
 import folium
@@ -9,8 +75,8 @@ import pandas as pd
 import sys
 import os
 
-# Import local utilities from src/local/
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src', 'local'))
+# Import local utilities from 2_local_processing/
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '2_local_processing'))
 import local_utils as func
 
 st.set_page_config(layout="wide")
@@ -21,37 +87,59 @@ import branca.colormap as cm
 
 # Decorate the function with st.cache to only run it once and cache the result
 @st.cache_data(show_spinner="Cache Miss")
-def load_district_groupby_socio_economic():
-    """Load the data source which contains the transaction data results by postcode district
-    for 2023 with the 2019 socio economic data aggregated up to the district level joined on."""
-    gdf = gpd.read_file('district_groupby_socio_economic_london.gpkg', layer='socio')
-    # gdf['geometry'] = gdf['geometry'].apply(lambda x: x.wkt) 
+def load_district_geometry():
+    """Load district geometry and static socio-economic data (one row per district).
+    Contains 2025 IMD socio-economic indicators aggregated to postcode district level."""
+    gdf = gpd.read_file('2_local_processing/3_gold/district_geometry_london_flats.gpkg', layer='socio')
     gdf.columns = func.clean_district_columns(gdf.columns)
-    #gdf[(gdf['NumTransactions']<=100) & (gdf['Year']>= 2018)]
+    return gdf
+
+@st.cache_data(show_spinner="Cache Miss")
+def load_district_transactions():
+    """Load FLAT transaction time-series data (multiple years per district).
+    Contains Flat transaction data from 1995 to 2026."""
+    df = pd.read_csv('2_local_processing/3_gold/district_transactions_london_flats.csv')
+    df.columns = func.clean_district_columns(df.columns)
+    return df
+
+@st.cache_data(show_spinner="Cache Miss")
+def load_district_transactions_with_socio_economic():
+    """Join transaction data with geometry and socio-economic data.
+    This recreates the combined dataset by merging the separate files."""
+    transactions = load_district_transactions()
+    geometry = load_district_geometry()
+
+    # Merge transaction data with geometry on PostDist
+    merged = transactions.merge(geometry, on='PostDist', how='left')
+
+    # Convert to GeoDataFrame
+    gdf = gpd.GeoDataFrame(merged, geometry='geometry')
+
     return gdf
 
 @st.cache_data(show_spinner="Cache Miss")
 def load_socio_economic():
-    """Load the 2019 socio-economic dataset with polygons the original smaller area level"""
-    socio_economic = gpd.read_file("socio_economic_postcode_london.gpkg")
-
+    """Load the 2025 socio-economic dataset with polygons at the LSOA level (for London districts with flats)"""
+    socio_economic = gpd.read_file("2_local_processing/3_gold/socio_economic_postcode_london_flats.gpkg", layer='socio')
     return socio_economic
 
 @st.cache_data(show_spinner="Cache Miss")
 def load_price_graph():
-    """Load the dataset of the average price of property for every year for each postcode district"""
-    price_graph = pd.read_csv("district_groupby_price_graph.csv")
+    """Load the dataset of the average price of Flats for every year for each postcode district.
+    Contains Flat price data from 2000 to 2026."""
+    price_graph = pd.read_csv("2_local_processing/3_gold/district_groupby_price_graph_london_flats.csv")
     price_graph.columns = func.clean_district_columns(price_graph.columns)
     return price_graph
 
 @st.cache_data(show_spinner="Cache Miss")
 def load_property_type_groupby():
-    """Load the dataset of count of property transactions by Postcode District and Property Type"""
-    property_type_groupby = pd.read_csv("property_type_groupby.csv")
+    """Load the dataset of count of Flat transactions by Postcode District.
+    Aggregated across all years (Flats only)."""
+    property_type_groupby = pd.read_csv("2_local_processing/3_gold/property_type_groupby_london_flats.csv")
     property_type_groupby.columns = func.clean_district_columns(property_type_groupby.columns)
     return property_type_groupby
 
-district_groupby_socio_economic = load_district_groupby_socio_economic()
+district_transactions_with_socio_economic = load_district_transactions_with_socio_economic()
 socio_economic = load_socio_economic()
 price_graph = load_price_graph()
 property_type_groupby = load_property_type_groupby()
@@ -76,50 +164,50 @@ st.markdown(f"[GitHub ReadMe](https://github.com/butlerwill1/housing_project/blo
             [Socio-economic data explanation](https://github.com/butlerwill1/housing_project/blob/main/Supporting%20Documents/SocioEconomicDataDoc.md) - \
             [Land Registry data explanation](https://github.com/butlerwill1/housing_project/blob/main/Supporting%20Documents/LandRegistryDataDoc.md)", unsafe_allow_html=True)
 
-st.markdown("The socio economic data was measured on smaller geographic areas than a postcode district. These are the areas in red on the map. \
+st.markdown("The socio-economic data (2025 IMD) was measured on LSOA (Lower Layer Super Output Area) level, which are smaller geographic areas than postcode districts. These are the areas in red on the map. \
             Hover over these areas to reveal a tooltip showing stats about that area you can select in the select box below")
-st.markdown("A higher score for the socio economic variables means the social problems are greater, e.g. a high crime score means there is a lot of crime, \
+st.markdown("A higher score for the socio-economic variables means the social problems are greater, e.g. a high crime score means there is a lot of crime, \
             a high education score means there are problems with educational deprivation")
-st.markdown("The Transaction data is aggregated to the postcode district level, e.g. SW11, E4. These areas are represented by dashed \
+st.markdown("The transaction data spans from 1995 to 2026 and is aggregated to the postcode district level, e.g. SW11, E4. These areas are represented by dashed \
             black lines on the map")
 st.divider()
 
 col1, col2 = st.columns(2)
 
 with col1:
-    
-    socio_tooltip_choices = st.multiselect("Select the metrics you want to see from the 2019 Socio-economic data on the smaller red areas on the map", 
+
+    socio_tooltip_choices = st.multiselect("Select the metrics you want to see from the 2025 Socio-economic data on the smaller red areas on the map",
                                     sorted(socio_economic.columns),
                                   default=['AreaName', 'CrimeScore', 'EnvironmentScore'])
-    
+
     col1A, col1B = st.columns(2)
 
     with col1A:
         map_state = st.selectbox("Select Map Usage", ['Area Investigation with Lower Level', 'Choropleth'])
-    
+
     with col1B:
         choropleth_variable = st.selectbox("If Map type is Choropleth, select which variable to use",\
-                                           sorted(district_groupby_socio_economic.select_dtypes(include=['number']).columns))
+                                           sorted(district_transactions_with_socio_economic.select_dtypes(include=['number']).columns))
 
     if map_state == 'Area Investigation with Lower Level':
-        
-        district_choices = st.multiselect("Select Postcode Districts", 
-                                  sorted(district_groupby_socio_economic['PostDist'].unique()),
+
+        district_choices = st.multiselect("Select Postcode Districts",
+                                  sorted(district_transactions_with_socio_economic['PostDist'].unique()),
                                   default='E3')
 
     elif map_state == 'Choropleth':
-        district_choices = district_groupby_socio_economic['PostDist'].unique()
+        district_choices = district_transactions_with_socio_economic['PostDist'].unique()
     #%%
     # num_transactions_threshold = st.slider("Select the Number of Transactions that is considered a good sample size for a Year")
     # Define a linear color scale
-    linear = cm.linear.YlGnBu_09.scale(district_groupby_socio_economic[choropleth_variable].min(), 
-                                    district_groupby_socio_economic[choropleth_variable].max())
+    linear = cm.linear.YlGnBu_09.scale(district_transactions_with_socio_economic[choropleth_variable].min(),
+                                    district_transactions_with_socio_economic[choropleth_variable].max())
 
     socio_economic = socio_economic[socio_economic['PostDist'].isin(district_choices)]
     #%%
     # Filter the GeoDataFrame based on the selected districts
-    selected_districts = district_groupby_socio_economic[
-        district_groupby_socio_economic['PostDist'].isin(district_choices)
+    selected_districts = district_transactions_with_socio_economic[
+        district_transactions_with_socio_economic['PostDist'].isin(district_choices)
     ]
 
     #%%
@@ -143,9 +231,9 @@ with col1:
 
         #%%
         with col2:
-            
-            display_cols = st.multiselect("Select metrics from the Socio-economic data at the Postcode District Level, represented by black dotted areas on the map", 
-                        options=sorted(district_groupby_socio_economic.columns), 
+
+            display_cols = st.multiselect("Select metrics from the Socio-economic data at the Postcode District Level, represented by black dotted areas on the map",
+                        options=sorted(district_transactions_with_socio_economic.columns),
                         default=default_display_cols)
 
         # Define the tooltip for the postcode district level polygons
@@ -182,7 +270,7 @@ with col1:
 
         # Add the postcode district level polygons
         GeoJson(
-            district_groupby_socio_economic[district_groupby_socio_economic['PostcodeDistrict'].isin(district_choices)],
+            district_transactions_with_socio_economic[district_transactions_with_socio_economic['PostcodeDistrict'].isin(district_choices)],
             style_function=apply_style,  # Transparent polygons
             tooltip=postcode_tooltip
         ).add_to(m)
@@ -245,16 +333,16 @@ with col1:
             # Display the chart in the Streamlit app
             st.altair_chart(property_type_chart)
 
-            options = sorted(district_groupby_socio_economic.columns)
+            options = sorted(district_transactions_with_socio_economic.columns)
             st.subheader("Customisable Scatterplot of District")
-            x_choice = st.selectbox("Choose the X axis variable", 
+            x_choice = st.selectbox("Choose the X axis variable",
                                     options,
                                     index=options.index('CrimeAvg'))
-            y_choice = st.selectbox("Choose the Y axis variable", 
+            y_choice = st.selectbox("Choose the Y axis variable",
                                     options,
                                     index=options.index("AvgPrice"))
-            
-            scatter_plot = alt.Chart(district_groupby_socio_economic.drop(columns='geometry')).mark_circle(size=60).encode(
+
+            scatter_plot = alt.Chart(district_transactions_with_socio_economic.drop(columns='geometry')).mark_circle(size=60).encode(
             x=x_choice,
             y=y_choice,
             tooltip=['PostDist', x_choice, y_choice]  # Add more columns if needed

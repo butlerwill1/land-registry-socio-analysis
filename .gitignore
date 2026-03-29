@@ -15,11 +15,26 @@
 *.lock.hcl
 terraform-provider-aws_v5.39.1_x5
 gitignore
-OutputFiles
+
+# Big Data Files
 land_registry_data.csv
 district_groupby_socio_economic.gpkg
 socio_economic_postcode.gpkg
 District_Transaction_Groupby%.csv
+2_local_processing/1_bronze/IMD_population_all_indices.csv
+2_local_processing/3_gold/district_socio_economic_aggregated.csv
+2_local_processing/3_gold/district_transactions_with_socio_economic.gpkg
+1_spark_processing/3_gold/district_transaction_groupby.csv
+2_local_processing/1_bronze/Lower_layer_Super_Output_Areas_Dec_2011_polygons/LSOA_2011_EW_BFC_V3.cpg
+2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
+2_local_processing/3_gold/district_groupby_price_graph_london.csv
+2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
+2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
+2_local_processing/3_gold/property_type_groupby_london.csv
+2_local_processing/3_gold/socio_economic_postcode_london.gpkg
+2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
+2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
+
 
 # Jupyter Notebook
 .ipynb_checkpoints/
