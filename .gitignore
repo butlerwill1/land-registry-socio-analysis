@@ -34,6 +34,7 @@ District_Transaction_Groupby%.csv
 2_local_processing/3_gold/socio_economic_postcode_london.gpkg
 2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
 2_local_processing/3_gold/district_transactions_with_socio_economic_london.gpkg
+2_local_processing/3_gold/district_geometry_london_flats.gpkg
 
 
 # Jupyter Notebook
@@ -49,3 +50,7 @@ venv/
 env/
 ENV/
 .venv/
+2_local_processing/3_gold/district_geometry_london_flats.gpkg
+2_local_processing/3_gold/socio_economic_postcode_london_flats.gpkg
+2_local_processing/3_gold/district_geometry_london_flats.gpkg
+2_local_processing/3_gold/socio_economic_postcode_london_flats.gpkg

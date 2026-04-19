@@ -91,6 +91,9 @@ def load_district_geometry():
     """Load district geometry and static socio-economic data (one row per district).
     Contains 2025 IMD socio-economic indicators aggregated to postcode district level."""
     gdf = gpd.read_file('2_local_processing/3_gold/district_geometry_london_flats.gpkg', layer='socio')
+    # Ensure CRS is set (fix for naive geometry error)
+    if gdf.crs is None:
+        gdf = gdf.set_crs('EPSG:4326')
     gdf.columns = func.clean_district_columns(gdf.columns)
     return gdf
 
@@ -227,7 +230,7 @@ with col1:
         # Fit the map to the bounds
         m.fit_bounds([[miny, minx], [maxy, maxx]])
 
-        default_display_cols = ['PostcodeDistrict', 'AvgPrice', '5YearAvg%PriceInc', 'CrimeAvg']
+        default_display_cols = ['PostcodeDistrict', 'AvgPrice', 'RollMedianPct5Year', 'CrimeAvg']
 
         #%%
         with col2:

@@ -202,6 +202,9 @@ print(f"\n  Exporting London Flats Only (for Streamlit - OPTIMIZED SPLIT FILES).
 
 # Step 1: Create geometry-only file (one row per district)
 print(f"    Creating district geometry file (one row per district)...")
+# Store the CRS before grouping
+original_crs = district_transactions_london_flats.crs
+
 district_geometry_flats = district_transactions_london_flats.groupby('PostDist').first().reset_index()
 
 # Keep only: PostDist, geometry, and static socio-economic columns (no yearly data)
@@ -214,6 +217,10 @@ geometry_columns = ['PostDist', 'geometry', 'AreaName', 'CountLowLevelAreas', 'A
                    'HousingBarriersAvg', 'HousingBarriersRankAvg', 'EnvironmentAvg', 'EnvironmentRankAvg']
 
 district_geometry_flats = district_geometry_flats[geometry_columns]
+
+# Convert back to GeoDataFrame and restore CRS
+district_geometry_flats = gpd.GeoDataFrame(district_geometry_flats, geometry='geometry', crs=original_crs)
+
 print(f"    Writing {output_district_geometry_london_flats}...")
 district_geometry_flats.to_file(output_district_geometry_london_flats, layer='socio', driver='GPKG')
 file_size_mb = round(os.path.getsize(output_district_geometry_london_flats) / 1_000_000, 2)
