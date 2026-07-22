@@ -30,6 +30,7 @@ export function App() {
   const [selectedDistrict, setSelectedDistrict] = useState("SW11");
   const [lsoaEnabled, setLsoaEnabled] = useState(false);
   const [lsoaLoading, setLsoaLoading] = useState(false);
+  const [lsoaError, setLsoaError] = useState<string>();
   const [lsoaBoundaries, setLsoaBoundaries] = useState<AtlasFeatureCollection>();
 
   useEffect(() => {
@@ -54,13 +55,16 @@ export function App() {
   const handleLsoaChange = async (enabled: boolean) => {
     setLsoaEnabled(enabled);
     if (!enabled) return;
+    setLsoaError(undefined);
     if (priceMetricKeys.has(metric) || metric === "populationDensity") setMetric("overall");
     if (lsoaBoundaries) return;
     setLsoaLoading(true);
     try {
       setLsoaBoundaries(await loadLsoaBoundaries());
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The LSOA layer could not be loaded.");
+      setLsoaError(
+        reason instanceof Error ? reason.message : "The LSOA layer could not be loaded.",
+      );
       setLsoaEnabled(false);
     } finally {
       setLsoaLoading(false);
@@ -105,6 +109,7 @@ export function App() {
           selectedDistrict={selectedDistrict}
           lsoaEnabled={lsoaEnabled}
           lsoaLoading={lsoaLoading}
+          lsoaError={lsoaError}
           onMetricChange={handleMetricChange}
           onYearChange={setYear}
           onDistrictChange={setSelectedDistrict}

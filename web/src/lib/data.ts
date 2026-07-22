@@ -20,6 +20,11 @@ export async function loadInitialData() {
 let lsoaPromise: Promise<AtlasFeatureCollection> | undefined;
 
 export function loadLsoaBoundaries(): Promise<AtlasFeatureCollection> {
-  lsoaPromise ??= fetchJson<AtlasFeatureCollection>("/data/lsoa-boundaries.geojson");
+  lsoaPromise ??= fetchJson<AtlasFeatureCollection>("/data/lsoa-boundaries.geojson").catch(
+    (error: unknown) => {
+      lsoaPromise = undefined;
+      throw error;
+    },
+  );
   return lsoaPromise;
 }

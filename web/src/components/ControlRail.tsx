@@ -6,7 +6,7 @@ import {
   Layers3,
   Search,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { metricDefinitions, priceMetricKeys } from "../lib/metrics";
 import type { AppMetadata, DistrictRecord, MetricKey } from "../types";
 
@@ -18,6 +18,7 @@ interface ControlRailProps {
   selectedDistrict: string;
   lsoaEnabled: boolean;
   lsoaLoading: boolean;
+  lsoaError?: string;
   onMetricChange: (metric: MetricKey) => void;
   onYearChange: (year: number) => void;
   onDistrictChange: (district: string) => void;
@@ -32,12 +33,17 @@ export function ControlRail({
   selectedDistrict,
   lsoaEnabled,
   lsoaLoading,
+  lsoaError,
   onMetricChange,
   onYearChange,
   onDistrictChange,
   onLsoaChange,
 }: ControlRailProps) {
   const [query, setQuery] = useState(selectedDistrict);
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
+  useEffect(() => {
+    setQuery(selectedDistrict);
+  }, [selectedDistrict]);
   const results = useMemo(() => {
     const normalised = query.trim().toLowerCase();
     if (!normalised) return [];
@@ -53,10 +59,28 @@ export function ControlRail({
   const selected = districts.find((district) => district.district === selectedDistrict);
   const yearIndex = metadata.years.indexOf(year);
   const isPriceMetric = priceMetricKeys.has(metric);
+  const showResults = query !== selectedDistrict && results.length > 0;
 
   const selectDistrict = (district: DistrictRecord) => {
     setQuery(district.district);
+    setActiveResultIndex(0);
     onDistrictChange(district.district);
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showResults) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveResultIndex((index) => Math.min(index + 1, results.length - 1));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveResultIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      selectDistrict(results[activeResultIndex]);
+    } else if (event.key === "Escape") {
+      setQuery(selectedDistrict);
+    }
   };
 
   return (
@@ -124,7 +148,7 @@ export function ControlRail({
         />
         <div className="range-labels" aria-hidden="true">
           <span>{metadata.years[0]}</span>
-          <span>{metadata.latestCompleteYear}</span>
+          <span>{metadata.years[Math.floor(metadata.years.length / 2)]}</span>
           <span>{metadata.latestYear}</span>
         </div>
       </section>
@@ -137,6 +161,7 @@ export function ControlRail({
           <button
             type="button"
             className={!lsoaEnabled ? "active" : ""}
+            aria-pressed={!lsoaEnabled}
             onClick={() => onLsoaChange(false)}
           >
             Districts
@@ -144,6 +169,7 @@ export function ControlRail({
           <button
             type="button"
             className={lsoaEnabled ? "active" : ""}
+            aria-pressed={lsoaEnabled}
             onClick={() => onLsoaChange(true)}
           >
             {lsoaLoading ? "Loading…" : "LSOAs (2021)"}
@@ -151,6 +177,9 @@ export function ControlRail({
         </div>
         {isPriceMetric && !lsoaEnabled && (
           <p className="control-hint">LSOA detail switches the map to overall deprivation.</p>
+        )}
+        {lsoaError && (
+          <p className="control-error" role="status">LSOA detail could not load. Select it to retry.</p>
         )}
       </section>
 
@@ -162,21 +191,32 @@ export function ControlRail({
           <Search size={17} aria-hidden="true" />
           <input
             id="district-search"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={showResults}
+            aria-controls="district-search-results"
+            aria-activedescendant={showResults ? `district-result-${activeResultIndex}` : undefined}
             value={query}
             autoComplete="off"
             placeholder="Postcode district or borough"
             onFocus={() => setQuery(query || selectedDistrict)}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActiveResultIndex(0);
+            }}
+            onKeyDown={handleSearchKeyDown}
           />
         </div>
-        {query !== selectedDistrict && results.length > 0 && (
-          <div className="search-results" role="listbox" aria-label="District results">
-            {results.map((district) => (
+        {showResults && (
+          <div id="district-search-results" className="search-results" role="listbox" aria-label="District results">
+            {results.map((district, index) => (
               <button
+                id={`district-result-${index}`}
                 type="button"
                 role="option"
-                aria-selected={district.district === selectedDistrict}
+                aria-selected={index === activeResultIndex}
                 key={district.district}
+                onMouseEnter={() => setActiveResultIndex(index)}
                 onClick={() => selectDistrict(district)}
               >
                 <span>

@@ -54,7 +54,11 @@ function withLsoaValues(
   return {
     ...collection,
     features: collection.features
-      .filter((feature) => feature.properties?.district === selectedDistrict)
+      .filter(
+        (feature) =>
+          feature.properties?.district === selectedDistrict &&
+          feature.properties?.includedInDistrictSummary === true,
+      )
       .map((feature) => {
         const rawValue = feature.properties?.[metric];
         return {
@@ -296,8 +300,14 @@ export default function LondonMap({
     map.setLayoutProperty("lsoa-lines", "visibility", lsoaEnabled ? "visible" : "none");
   }, [lsoaBreaks, lsoaData, lsoaEnabled, mapReady]);
 
-  const legendBreaks = lsoaEnabled && lsoaData ? lsoaBreaks : breaks;
   const legendMetric = lsoaEnabled ? metricByKey[lsoaMetric] : metricByKey[metric];
+  const legendValues = lsoaEnabled && lsoaData
+    ? lsoaData.features
+        .map((feature) => feature.properties?.value)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    : values;
+  const legendMinimum = legendValues.length > 0 ? Math.min(...legendValues) : undefined;
+  const legendMaximum = legendValues.length > 0 ? Math.max(...legendValues) : undefined;
 
   return (
     <main className="map-region" aria-label="London postcode district map">
@@ -312,8 +322,8 @@ export default function LondonMap({
           {COLOURS.map((colour) => <i key={colour} style={{ backgroundColor: colour }} />)}
         </div>
         <div className="legend-labels">
-          <span>{legendBreaks[0] === undefined ? "No data" : legendMetric.format(legendBreaks[0])}</span>
-          <span>{legendBreaks[4] === undefined ? "" : legendMetric.format(legendBreaks[4])}</span>
+          <span>{legendMinimum === undefined ? "No data" : legendMetric.format(legendMinimum)}</span>
+          <span>{legendMaximum === undefined ? "" : legendMetric.format(legendMaximum)}</span>
         </div>
       </div>
     </main>

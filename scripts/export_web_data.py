@@ -15,7 +15,7 @@ GOLD_DIR = PROJECT_ROOT / "2_local_processing" / "3_gold"
 OUTPUT_DIR = PROJECT_ROOT / "web" / "public" / "data"
 DISTRICT_SOURCE = GOLD_DIR / "district_geometry_london_flats.gpkg"
 LSOA_SOURCE = GOLD_DIR / "socio_economic_postcode_london_flats.gpkg"
-TRANSACTION_SOURCE = PROJECT_ROOT / "district_groupby_price_graph.csv"
+TRANSACTION_SOURCE = GOLD_DIR / "district_transactions_london_flats.csv"
 
 DISTRICT_FIELDS = {
     "PostDist": "district",
@@ -85,6 +85,17 @@ def export() -> None:
     lsoa_source = gpd.read_file(LSOA_SOURCE)
     transactions = pd.read_csv(TRANSACTION_SOURCE)
 
+    required_transaction_fields = {
+        "postcode_district",
+        "year",
+        "num_transactions",
+        "avg_price",
+        "median_price",
+    }
+    missing_fields = required_transaction_fields - set(transactions.columns)
+    if missing_fields:
+        raise ValueError(f"Transaction source is missing fields: {sorted(missing_fields)}")
+
     districts = district_source[list(DISTRICT_FIELDS) + ["geometry"]].rename(
         columns=DISTRICT_FIELDS
     )
@@ -92,9 +103,14 @@ def export() -> None:
 
     transactions = transactions.loc[
         transactions["postcode_district"].isin(district_codes)
-        & transactions["property_type"].eq("Flat")
     ].copy()
     transactions = transactions.sort_values(["postcode_district", "year"])
+    if transactions.duplicated(["postcode_district", "year"]).any():
+        raise ValueError("Transaction source contains duplicate district-year rows")
+    if transactions["postcode_district"].nunique() != len(district_codes):
+        raise ValueError("Transaction source does not cover every mapped postcode district")
+    if int(transactions["year"].max()) < 2026:
+        raise ValueError("Transaction source is stale: expected the partial 2026 build")
 
     histories: dict[str, list[dict[str, int | float]]] = {}
     for district, group in transactions.groupby("postcode_district", sort=True):
@@ -103,7 +119,7 @@ def export() -> None:
                 "year": int(row.year),
                 "transactions": int(row.num_transactions),
                 "averagePrice": _clean_number(row.avg_price, 0),
-                "medianPrice": _clean_number(row["50th_percentile_price"], 0),
+                "medianPrice": _clean_number(row.median_price, 0),
             }
             for _, row in group.iterrows()
         ]
@@ -122,11 +138,15 @@ def export() -> None:
         tolerance=12, preserve_topology=True
     )
     district_geometry = district_geometry.to_crs(4326)
+    if district_geometry.geometry.is_empty.any() or not district_geometry.geometry.is_valid.all():
+        raise ValueError("District browser geometry contains empty or invalid features")
 
     lsoas = lsoa_source[list(LSOA_FIELDS) + ["geometry"]].rename(columns=LSOA_FIELDS)
     lsoas = lsoas.to_crs(27700)
     lsoas["geometry"] = lsoas.geometry.simplify(tolerance=18, preserve_topology=True)
     lsoas = lsoas.to_crs(4326)
+    if lsoas.geometry.is_empty.any() or not lsoas.geometry.is_valid.all():
+        raise ValueError("LSOA browser geometry contains empty or invalid features")
     for field in set(LSOA_FIELDS.values()) - {
         "lsoaCode",
         "lsoaName",
@@ -137,6 +157,7 @@ def export() -> None:
         lsoas[field] = lsoas[field].map(_clean_number)
 
     years = sorted(int(year) for year in transactions["year"].unique())
+    latest_year = max(years)
     metadata = {
         "generatedFrom": {
             "transactions": TRANSACTION_SOURCE.name,
@@ -146,8 +167,8 @@ def export() -> None:
         "districtCount": len(districts),
         "lsoaCount": len(lsoas),
         "years": years,
-        "latestCompleteYear": 2025,
-        "latestYear": max(years),
+        "latestCompleteYear": latest_year - 1,
+        "latestYear": latest_year,
         "transactionCount": int(transactions["num_transactions"].sum()),
     }
 
