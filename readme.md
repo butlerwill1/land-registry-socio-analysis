@@ -3,7 +3,7 @@
 
 ## Project Overview
 
-This project analyses historic UK Land Registry data, sorted by postcode district (e.g., SW11, E3). Our approach enriches this data with 2019 socio-economic information, which originally covers finer geographic areas than postcode districts. To align these datasets, we aggregate the socio-economic data from these smaller areas to their corresponding postcode districts using geospatial merging techniques. This process allows us to integrate detailed socio-economic insights with property transaction data. For example, we can calculate the average price for flats in SW11 in 2023, while also providing a socio-economic profile of the area. By merging these datasets, we offer location-based insights, blending property values with socio-economic contexts to uncover deeper trends and patterns.
+This project analyses historic UK Land Registry data, sorted by postcode district (e.g., SW11, E3). Our approach enriches this data with 2025 socio-economic information, which covers 2021 Lower-layer Super Output Areas (LSOAs). To align these datasets, we assign each LSOA to the postcode district containing the largest share of its area and aggregate the indicators to district level. For example, we can calculate the average price for flats in SW11 in 2023, while also providing a socio-economic profile of the area.
 
 ![Example Dashboard Output Of London Postcode District Comparisons](/Images/LondonDistrictsComparison.png)
 
@@ -18,6 +18,9 @@ This project uses a **script-based workflow** with automated deployment to AWS E
 2. Upload raw data: `./scripts/upload_to_bronze.sh ~/Downloads/land_registry_data.csv`
 3. Convert to Parquet: `./scripts/run_on_emr.sh bronze_to_silver.py <cluster-id>`
 4. Run aggregations: `./scripts/run_on_emr.sh silver_to_gold.py <cluster-id>`
+5. Rebuild the London socioeconomic assets: `python 2_local_processing/rebuild_london_lsoa2021.py`
+
+The LSOA rebuild downloads the official 2021 LSOA geometry and corrected IMD 2025 data. Boundary-crossing LSOAs are assigned to the postcode district with the largest area overlap. The winning share, runner-up share and confidence are retained in the output. LSOAs whose winning district contains less than 50% of their area remain visible for auditing but are excluded from district socioeconomic summaries.
 
 📖 **[Read the EMR Workflow Guide](docs/EMR_WORKFLOW.md)** for detailed instructions.
 
@@ -43,7 +46,7 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 - **Postcode District Polygons**: Polygons in shapely format defining Postcode Areas, Districts and Sectors can be downloaded
 [here](https://datashare.ed.ac.uk/handle/10283/2597). From Edinburgh DataShare.
 - **England Polygons**: Polygons to match onto the socio econmic xlsx file 
-- **English Indices of Deprivation - Socio-economic Data** [Statistics](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019) on relative deprivation in small areas in England. Gives the statistics in a shapely file. Read more in the SocioEconomicDataDoc.md file.
+- **English Indices of Deprivation 2025**: [Official statistics and corrected data](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2025) for 2021 LSOAs.
 
 ## Built With
 - **AWS EMR Clusters**: A Cloud Big Data platform for processing massive amounts of data which can host big data software technologies such as Apache Spark.
