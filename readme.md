@@ -48,7 +48,12 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 - **England Polygons**: Polygons to match onto the socio econmic xlsx file 
 - **English Indices of Deprivation 2025**: [Official statistics and corrected data](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2025) for 2021 LSOAs.
 
+## Local web application
+
+The professional map dashboard is in [`web/`](web/README.md). Run `web/start-local.ps1` in PowerShell, then open `http://127.0.0.1:4173`. Browser-ready data is generated from the gold GeoPackages by `scripts/export_web_data.py`.
+
 ## Built With
+
 - **AWS EMR Clusters**: A Cloud Big Data platform for processing massive amounts of data which can host big data software technologies such as Apache Spark.
 - **EMR Notebooks**: Jupyter notebook environment for interactive development and data exploration on EMR clusters.
 - **Terraform**: An Infrastructure as Code (IaC) technology used as a clear and convinient way to create an AWS EMR Cluster.

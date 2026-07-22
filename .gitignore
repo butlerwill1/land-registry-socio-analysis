@@ -51,6 +51,11 @@ District_Transaction_Groupby%.csv
 venv/
 env/
 ENV/
+web/node_modules/
+web/dist/
+web/playwright-report/
+web/test-results/
+*.tsbuildinfo
 .venv/
 2_local_processing/3_gold/district_geometry_london_flats.gpkg
 2_local_processing/3_gold/socio_economic_postcode_london_flats.gpkg
