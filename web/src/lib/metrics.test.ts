@@ -10,6 +10,7 @@ import type { DistrictRecord } from "../types";
 const district: DistrictRecord = {
   district: "SW11",
   areaName: "Wandsworth",
+  hasSocioeconomicSummary: true,
   lsoaCount: 1,
   excludedLsoaCount: 0,
   meanOverlapShare: 1,
@@ -48,5 +49,6 @@ describe("map metric helpers", () => {
     expect(breaks[0]).toBeCloseTo(18.33, 2);
     expect(breaks[4]).toBeCloseTo(51.67, 2);
     expect(getPercentile(30, [10, 20, 30, 40, 50])).toBe(50);
+    expect(getPercentile(null, [10, 20, null, 40])).toBeNull();
   });
 });

@@ -1,0 +1,16 @@
+{
+  "aggregation": "Exact flat-price statistics by postcode district and year",
+  "districtCount": 314,
+  "generatedOn": "2026-07-23",
+  "latestCompleteYear": 2025,
+  "latestTransferDate": "2026-01-30",
+  "source": "HM Land Registry Price Paid Data, validated silver layer",
+  "sourceManifestSha256": "6ce3fa8bf7d0955d5790d0ace40830e95489e0cb176359b7d63c0fbc3a0d800d",
+  "sourceParquetFileCount": 72,
+  "sourcePath": "s3://landregistryproject/silver/land_registry_data.parquet/",
+  "transactionCount": 2153409,
+  "years": [
+    1995,
+    2026
+  ]
+}

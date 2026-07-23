@@ -18,9 +18,27 @@ This project uses a **script-based workflow** with automated deployment to AWS E
 2. Upload raw data: `./scripts/upload_to_bronze.sh ~/Downloads/land_registry_data.csv`
 3. Convert to Parquet: `./scripts/run_on_emr.sh bronze_to_silver.py <cluster-id>`
 4. Run aggregations: `./scripts/run_on_emr.sh silver_to_gold.py <cluster-id>`
-5. Rebuild the London socioeconomic assets: `python 2_local_processing/rebuild_london_lsoa2021.py`
+5. Refresh Central London boundaries: `python 2_local_processing/postcode_boundaries.py --refresh`
+6. Rebuild London flat transactions from S3: `python 2_local_processing/rebuild_london_transactions.py`
+7. Rebuild the London socioeconomic assets: `python 2_local_processing/rebuild_london_lsoa2021.py`
+8. Export browser assets: `python scripts/export_web_data.py`
 
-The LSOA rebuild downloads the official 2021 LSOA geometry and corrected IMD 2025 data. Boundary-crossing LSOAs are assigned to the postcode district with the largest area overlap. The winning share, runner-up share and confidence are retained in the output. LSOAs whose winning district contains less than 50% of their area remain visible for auditing but are excluded from district socioeconomic summaries.
+The Central London boundary rebuild dissolves public GLA postcode-unit polygons
+for EC, WC, W1 and SW1, replacing the incomplete central footprint while
+retaining the existing outer-London districts. It validates coverage and district
+alignment against official February 2026 ONS live-postcode centroids. The
+transaction rebuild reads the validated HM Land Registry silver Parquet archive
+in S3 and calculates exact flat-price statistics for every mapped district.
+
+The LSOA rebuild downloads the official 2021 LSOA geometry and corrected IMD 2025
+data. Boundary-crossing LSOAs are assigned to the postcode district with the
+largest area overlap. The winning share, runner-up share and confidence are
+retained in the output. Only LSOAs with at least 99.9% of their polygon inside
+one postcode district contribute to district socioeconomic summaries; the small
+tolerance allows for geometric precision noise. Boundary-crossing LSOAs remain
+visible for auditing but are excluded from summaries. Very small postal districts
+without a fully contained LSOA keep their transaction data but do not receive a
+fabricated socioeconomic summary.
 
 📖 **[Read the EMR Workflow Guide](docs/EMR_WORKFLOW.md)** for detailed instructions.
 
@@ -45,12 +63,16 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 - **Price Paid HM Land Registry**: Sales prices of properties in England and Wales from 1995. The file is around 5Gb and can be downloaded [here](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) Read more in the LandRegistryDataDoc.md file.
 - **Postcode District Polygons**: Polygons in shapely format defining Postcode Areas, Districts and Sectors can be downloaded
 [here](https://datashare.ed.ac.uk/handle/10283/2597). From Edinburgh DataShare.
+- **Central London Postcode Units**: The public Greater London Authority
+  [Postcode Units ArcGIS layer](https://gis.london.gov.uk/arcgis/rest/services/IMA_explorer/ima_context_public_02/MapServer/8)
+  supplies EC, WC, W1 and SW1 unit polygons, which are dissolved to district level
+  and checked against the official ONS live-postcode release.
 - **England Polygons**: Polygons to match onto the socio econmic xlsx file 
 - **English Indices of Deprivation 2025**: [Official statistics and corrected data](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2025) for 2021 LSOAs.
 
 ## Local web application
 
-The professional map dashboard is in [`web/`](web/README.md). Run `web/start-local.ps1` in PowerShell, then open `http://127.0.0.1:4173`. Browser-ready data is generated from the gold GeoPackages by `scripts/export_web_data.py`.
+The professional map dashboard is in [`web/`](web/README.md). Run `web/start-local.ps1` in PowerShell, then open `http://127.0.0.1:4173`. Browser-ready data is generated from the gold GeoPackages by `scripts/export_web_data.py`. The current build contains 314 postcode districts, 5,921 mapped LSOAs and 2,153,409 flat transactions. The 2026 data is explicitly marked partial and currently includes registered transfers through 30 January 2026.
 
 ## Built With
 

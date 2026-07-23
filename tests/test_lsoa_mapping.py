@@ -51,9 +51,12 @@ class LargestOverlapTests(unittest.TestCase):
         self.assertEqual(assignments.loc["FULL", "assignment_method"], "fully_within")
         self.assertEqual(assignments.loc["CROSS", "PostDist"], "B1")
         self.assertAlmostEqual(assignments.loc["CROSS", "overlap_share"], 2 / 3, places=3)
+        self.assertFalse(assignments.loc["CROSS", "included_in_district_summary"])
         self.assertEqual(assignments.loc["SLIVER", "PostDist"], "B1")
         self.assertGreater(assignments.loc["SLIVER", "overlap_share"], 0.96)
+        self.assertFalse(assignments.loc["SLIVER", "included_in_district_summary"])
         self.assertFalse(assignments.loc["TINY", "included_in_district_summary"])
+        self.assertTrue(assignments.loc["FULL", "included_in_district_summary"])
 
     def test_aggregation_is_population_weighted(self) -> None:
         assigned = assign_lsoas_by_largest_overlap(self.lsoas.iloc[:2], self.districts)
@@ -75,8 +78,8 @@ class LargestOverlapTests(unittest.TestCase):
         result = aggregate_lsoas_to_districts(assigned, self.districts)
         values = result.set_index("PostDist")
 
-        self.assertEqual(values.loc["A1", "OverallAvg"], 25.0)
-        self.assertEqual(values["TotalPopulation"].sum(), 400)
+        self.assertEqual(values.loc["A1", "OverallAvg"], 10.0)
+        self.assertEqual(values["TotalPopulation"].sum(), 100)
 
 
 if __name__ == "__main__":

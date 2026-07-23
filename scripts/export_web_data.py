@@ -16,10 +16,13 @@ OUTPUT_DIR = PROJECT_ROOT / "web" / "public" / "data"
 DISTRICT_SOURCE = GOLD_DIR / "district_geometry_london_flats.gpkg"
 LSOA_SOURCE = GOLD_DIR / "socio_economic_postcode_london_flats.gpkg"
 TRANSACTION_SOURCE = GOLD_DIR / "district_transactions_london_flats.csv"
+TRANSACTION_METADATA_SOURCE = GOLD_DIR / "london_transaction_source.json"
+BOUNDARY_METADATA_SOURCE = GOLD_DIR / "postcode_district_boundary_source.json"
 
 DISTRICT_FIELDS = {
     "PostDist": "district",
     "AreaName": "areaName",
+    "HasSocioeconomicSummary": "hasSocioeconomicSummary",
     "CountLowLevelAreas": "lsoaCount",
     "ExcludedAmbiguousLSOAs": "excludedLsoaCount",
     "MeanOverlapShare": "meanOverlapShare",
@@ -84,6 +87,12 @@ def export() -> None:
     district_source = gpd.read_file(DISTRICT_SOURCE)
     lsoa_source = gpd.read_file(LSOA_SOURCE)
     transactions = pd.read_csv(TRANSACTION_SOURCE)
+    transaction_metadata = json.loads(
+        TRANSACTION_METADATA_SOURCE.read_text(encoding="utf-8")
+    )
+    boundary_metadata = json.loads(
+        BOUNDARY_METADATA_SOURCE.read_text(encoding="utf-8")
+    )
 
     required_transaction_fields = {
         "postcode_district",
@@ -109,8 +118,11 @@ def export() -> None:
         raise ValueError("Transaction source contains duplicate district-year rows")
     if transactions["postcode_district"].nunique() != len(district_codes):
         raise ValueError("Transaction source does not cover every mapped postcode district")
-    if int(transactions["year"].max()) < 2026:
-        raise ValueError("Transaction source is stale: expected the partial 2026 build")
+    source_latest_year = int(transaction_metadata["years"][1])
+    if int(transactions["year"].max()) != source_latest_year:
+        raise ValueError(
+            "Transaction rows and source metadata disagree on the latest year"
+        )
 
     histories: dict[str, list[dict[str, int | float]]] = {}
     for district, group in transactions.groupby("postcode_district", sort=True):
@@ -126,10 +138,18 @@ def export() -> None:
 
     district_records = []
     for _, row in districts.drop(columns="geometry").sort_values("district").iterrows():
-        record = {
-            key: (_clean_number(row[key], 4) if key not in {"district", "areaName"} else row[key])
-            for key in DISTRICT_FIELDS.values()
-        }
+        record = {}
+        for key in DISTRICT_FIELDS.values():
+            if key in {"district", "areaName"}:
+                record[key] = row[key]
+            elif key == "hasSocioeconomicSummary":
+                if pd.isna(row[key]):
+                    raise ValueError(
+                        f"District {row['district']} has no socioeconomic availability flag"
+                    )
+                record[key] = bool(row[key])
+            else:
+                record[key] = _clean_number(row[key], 4)
         record["history"] = histories.get(row["district"], [])
         district_records.append(record)
 
@@ -154,21 +174,37 @@ def export() -> None:
         "assignmentConfidence",
         "includedInDistrictSummary",
     }:
-        lsoas[field] = lsoas[field].map(_clean_number)
+        decimals = 4 if field == "overlapShare" else 2
+        lsoas[field] = lsoas[field].map(
+            lambda value: _clean_number(value, decimals)
+        )
 
     years = sorted(int(year) for year in transactions["year"].unique())
     latest_year = max(years)
+    latest_complete_year = int(transaction_metadata["latestCompleteYear"])
     metadata = {
         "generatedFrom": {
             "transactions": TRANSACTION_SOURCE.name,
             "districts": DISTRICT_SOURCE.name,
             "lsoas": LSOA_SOURCE.name,
         },
+        "dataAsOf": transaction_metadata["latestTransferDate"],
+        "boundarySource": boundary_metadata["source"],
+        "boundarySources": boundary_metadata["sources"],
+        "boundaryMethod": boundary_metadata["method"],
+        "boundarySourceRetrievedOn": boundary_metadata["retrievedOn"],
+        "centralBoundaryCoverageShare": boundary_metadata["currentValidation"][
+            "coverageShare"
+        ],
+        "centralBoundaryDistrictMatchShare": boundary_metadata[
+            "currentValidation"
+        ]["matchingDistrictShare"],
         "districtCount": len(districts),
         "lsoaCount": len(lsoas),
         "years": years,
-        "latestCompleteYear": latest_year - 1,
+        "latestCompleteYear": latest_complete_year,
         "latestYear": latest_year,
+        "latestYearIsPartial": latest_year > latest_complete_year,
         "transactionCount": int(transactions["num_transactions"].sum()),
     }
 

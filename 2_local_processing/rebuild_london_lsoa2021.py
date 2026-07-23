@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 
 from lsoa_mapping import (
     aggregate_lsoas_to_districts,
@@ -32,15 +33,31 @@ def _write_geopackage_atomically(data: gpd.GeoDataFrame, destination: Path) -> N
 
 
 def rebuild(refresh_sources: bool = False) -> None:
-    district_path = GOLD_DIR / "district_geometry_london_flats.gpkg"
+    district_source_path = GOLD_DIR / "postcode_district_boundaries_london.gpkg"
+    district_output_path = GOLD_DIR / "district_geometry_london_flats.gpkg"
+    transaction_path = GOLD_DIR / "district_transactions_london_flats.csv"
     lsoa_output_path = GOLD_DIR / "socio_economic_postcode_london_flats.gpkg"
     geometry_cache = SOURCE_DIR / "lsoa_2021_london_postcode_extent.geojson"
     imd_csv = SOURCE_DIR / "imd_2025_file_7.csv"
 
-    print("Loading existing postcode-district boundaries...")
-    districts = gpd.read_file(district_path, layer="socio")[["PostDist", "geometry"]]
+    print("Loading corrected postcode-district boundaries...")
+    districts = gpd.read_file(
+        district_source_path,
+        layer="districts",
+    )[["PostDist", "geometry"]]
     districts = ensure_wgs84(districts)
-    print(f"Loaded {len(districts):,} postcode districts")
+    transaction_districts = set(
+        pd.read_csv(transaction_path, usecols=["postcode_district"])[
+            "postcode_district"
+        ].unique()
+    )
+    districts = districts[districts["PostDist"].isin(transaction_districts)].copy()
+    missing_boundaries = sorted(transaction_districts - set(districts["PostDist"]))
+    if missing_boundaries:
+        raise ValueError(
+            f"Transaction districts without postcode boundaries: {missing_boundaries}"
+        )
+    print(f"Loaded {len(districts):,} postcode districts with flat transactions")
 
     print("Fetching official 2021 LSOA polygons for the district extent...")
     lsoas = fetch_lsoa2021_for_bounds(
@@ -69,23 +86,62 @@ def rebuild(refresh_sources: bool = False) -> None:
     print(f"Mapped {len(assigned):,} LSOAs with IMD data")
 
     print("Creating population-weighted postcode-district summaries...")
-    district_socio = aggregate_lsoas_to_districts(assigned, districts)
-    missing_districts = sorted(set(districts["PostDist"]) - set(district_socio["PostDist"]))
-    if missing_districts:
-        raise ValueError(f"Districts without assigned LSOAs: {missing_districts}")
+    summarised_districts = aggregate_lsoas_to_districts(assigned, districts)
+    summary_attributes = summarised_districts.drop(columns="geometry")
+    district_socio = districts.merge(
+        summary_attributes,
+        on="PostDist",
+        how="left",
+        validate="one_to_one",
+    )
+    district_socio = gpd.GeoDataFrame(
+        district_socio,
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    required_summary_fields = [
+        "AreaName",
+        "CountLowLevelAreas",
+        "TotalPopulation",
+        "OverallAvg",
+        "IncomeAvg",
+        "EmploymentAvg",
+        "EducationAvg",
+        "HealthAvg",
+        "CrimeAvg",
+        "HousingBarriersAvg",
+        "EnvironmentAvg",
+    ]
+    has_socio = (
+        district_socio["CountLowLevelAreas"].fillna(0).gt(0)
+        & district_socio[required_summary_fields].notna().all(axis=1)
+    )
+    missing_socio = ~has_socio
+    district_socio.loc[missing_socio, "AreaName"] = "Central London"
+    district_socio.loc[missing_socio, "CountLowLevelAreas"] = 0
+    district_socio.loc[missing_socio, "CandidateLowLevelAreas"] = 0
+    district_socio.loc[missing_socio, "ExcludedAmbiguousLSOAs"] = 0
+    district_socio.loc[missing_socio, "FullyWithinLSOAs"] = 0
+    district_socio.loc[missing_socio, "BoundaryCrossingLSOAs"] = 0
+    district_socio.loc[missing_socio, "LowConfidenceLSOAs"] = 0
+    district_socio["HasSocioeconomicSummary"] = has_socio
+    district_socio["AreaKm2"] = (
+        district_socio.to_crs(27700).geometry.area / 1_000_000
+    ).round(3)
 
     print("Writing dashboard GeoPackages...")
     _write_geopackage_atomically(assigned, lsoa_output_path)
-    _write_geopackage_atomically(district_socio, district_path)
+    _write_geopackage_atomically(district_socio, district_output_path)
 
     confidence_counts = assigned["assignment_confidence"].value_counts().to_dict()
     excluded_count = int((~assigned["included_in_district_summary"]).sum())
     print("LSOA 2021 rebuild complete")
     print(f"  Districts: {len(district_socio):,}")
+    print(f"  Districts without a majority-overlap LSOA: {int(missing_socio.sum()):,}")
     print(f"  LSOAs: {len(assigned):,}")
     print(f"  Assignment confidence: {confidence_counts}")
     print(f"  Excluded from district summaries (<50% overlap): {excluded_count:,}")
-    print(f"  District output: {district_path}")
+    print(f"  District output: {district_output_path}")
     print(f"  LSOA output: {lsoa_output_path}")
 
 

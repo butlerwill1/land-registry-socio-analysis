@@ -28,7 +28,8 @@ IMD_2025_CSV_URL = (
 AREA_CRS = "EPSG:27700"
 WEB_CRS = "EPSG:4326"
 ARCGIS_BATCH_SIZE = 250
-MINIMUM_SUMMARY_OVERLAP_SHARE = 0.5
+# Treat a 0.1% discrepancy as geometric precision noise, not a boundary crossing.
+MINIMUM_SUMMARY_OVERLAP_SHARE = 0.999
 
 
 def _request_json(

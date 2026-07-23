@@ -106,8 +106,14 @@ export function formatCompactCurrency(value: number): string {
   return compactCurrency.format(value);
 }
 
-export function getPercentile(value: number, values: number[]): number {
-  const valid = values.filter(Number.isFinite).sort((a, b) => a - b);
+export function getPercentile(
+  value: number | null,
+  values: Array<number | null>,
+): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  const valid = values
+    .filter((candidate): candidate is number => candidate !== null && Number.isFinite(candidate))
+    .sort((a, b) => a - b);
   if (valid.length < 2) return 50;
   const belowOrEqual = valid.filter((candidate) => candidate <= value).length;
   return Math.round(((belowOrEqual - 1) / (valid.length - 1)) * 100);

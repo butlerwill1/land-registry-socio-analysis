@@ -59,6 +59,7 @@ export function ControlRail({
   const selected = districts.find((district) => district.district === selectedDistrict);
   const yearIndex = metadata.years.indexOf(year);
   const isPriceMetric = priceMetricKeys.has(metric);
+  const isPartialYear = year > metadata.latestCompleteYear;
   const showResults = query !== selectedDistrict && results.length > 0;
 
   const selectDistrict = (district: DistrictRecord) => {
@@ -114,7 +115,7 @@ export function ControlRail({
           <label className="control-label" htmlFor="year-range">
             Year <Info size={14} aria-label="Transaction year" />
           </label>
-          {year > metadata.latestCompleteYear && <span className="partial-inline">Partial</span>}
+          {isPartialYear && <span className="partial-inline">Partial</span>}
         </div>
         <div className="year-stepper">
           <button
@@ -151,6 +152,11 @@ export function ControlRail({
           <span>{metadata.years[Math.floor(metadata.years.length / 2)]}</span>
           <span>{metadata.latestYear}</span>
         </div>
+        {isPartialYear && (
+          <p className="control-hint partial-year-hint">
+            Registered sales only. Recent totals will rise as HM Land Registry records complete.
+          </p>
+        )}
       </section>
 
       <section className="control-section">
@@ -243,7 +249,7 @@ export function ControlRail({
       <footer className="rail-footer">
         <span>{metadata.districtCount} postcode districts</span>
         <span>{metadata.lsoaCount.toLocaleString("en-GB")} mapped LSOAs</span>
-        <span>Prices are nominal · Crown copyright and database rights 2025</span>
+        <span>Prices are nominal. Contains HM Land Registry data.</span>
       </footer>
     </aside>
   );

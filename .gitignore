@@ -23,6 +23,7 @@ socio_economic_postcode.gpkg
 District_Transaction_Groupby%.csv
 2_local_processing/1_bronze/IMD_population_all_indices.csv
 2_local_processing/1_bronze/official_imd2025/
+2_local_processing/1_bronze/gla_postcodes/
 2_local_processing/3_gold/*.tmp.gpkg
 2_local_processing/3_gold/district_socio_economic_aggregated.csv
 2_local_processing/3_gold/district_transactions_with_socio_economic.gpkg

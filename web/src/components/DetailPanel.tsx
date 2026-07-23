@@ -58,7 +58,7 @@ export function DetailPanel({
     },
     {
       label: "IMD score",
-      value: district.overall.toFixed(1),
+      value: district.overall === null ? "No summary" : district.overall.toFixed(1),
       icon: Gauge,
     },
   ];
@@ -98,39 +98,59 @@ export function DetailPanel({
           <h2>Socioeconomic context</h2>
           <span>IMD 2025</span>
         </div>
-        <div className="indicator-header" aria-hidden="true">
-          <span>Indicator</span>
-          <span>Score</span>
-          <span>London percentile</span>
-        </div>
-        <div className="indicator-list">
-          {socioeconomicMetricKeys.map((metric) => {
-            const value = district[metric];
-            const percentile = getPercentile(value, districts.map((item) => item[metric]));
-            return (
-              <div className="indicator-row" key={metric}>
-                <span>{socioeconomicLabels[metric]}</span>
-                <strong>{value.toFixed(1)}</strong>
-                <span className="percentile-bar" title={`${percentile}th percentile in London`}>
-                  <i style={{ width: `${percentile}%` }} />
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        {district.hasSocioeconomicSummary ? (
+          <>
+            <div className="indicator-header" aria-hidden="true">
+              <span>Indicator</span>
+              <span>Score</span>
+              <span>London percentile</span>
+            </div>
+            <div className="indicator-list">
+              {socioeconomicMetricKeys.map((metric) => {
+                const value = district[metric];
+                const percentile = getPercentile(
+                  value,
+                  districts.map((item) => item[metric]),
+                );
+                return (
+                  <div className="indicator-row" key={metric}>
+                    <span>{socioeconomicLabels[metric]}</span>
+                    <strong>{value === null ? "No data" : value.toFixed(1)}</strong>
+                    {percentile === null ? (
+                      <span className="indicator-unavailable">Not mapped</span>
+                    ) : (
+                      <span
+                        className="percentile-bar"
+                        title={`${percentile}th percentile in London`}
+                      >
+                        <i style={{ width: `${percentile}%` }} />
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <p className="socio-unavailable">
+            No 2021 LSOA fits fully within this small postcode district.
+          </p>
+        )}
       </section>
 
-      <section className="quality-strip" aria-label="Mapping quality">
-        <span>
-          <strong>{district.lsoaCount}</strong> LSOAs included
-        </span>
-        <span>
-          <strong>{Math.round(district.meanOverlapShare * 100)}%</strong> mean overlap
-        </span>
-        <span>
-          <strong>{district.excludedLsoaCount}</strong> excluded
-        </span>
-      </section>
+      {district.hasSocioeconomicSummary && district.meanOverlapShare !== null && (
+        <section className="quality-strip" aria-label="Mapping quality">
+          <span>
+            <strong>{district.lsoaCount}</strong> LSOAs included
+          </span>
+          <span>
+            <strong>{Math.round(district.meanOverlapShare * 100)}%</strong> mean overlap
+          </span>
+          <span>
+            <strong>{district.excludedLsoaCount}</strong> excluded
+          </span>
+        </section>
+      )}
     </aside>
   );
 }

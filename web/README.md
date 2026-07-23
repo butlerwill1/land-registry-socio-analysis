@@ -15,17 +15,26 @@ Open `http://127.0.0.1:4173`. The base map uses OpenStreetMap tiles and therefor
 
 ## Refresh the app data
 
-After rebuilding the source GeoPackages, run:
+From the repository root, rebuild and export the source data:
 
 ```powershell
-python scripts\export_web_data.py
+.\.venv\Scripts\python.exe 2_local_processing\postcode_boundaries.py --refresh
+.\.venv\Scripts\python.exe 2_local_processing\rebuild_london_transactions.py
+.\.venv\Scripts\python.exe 2_local_processing\rebuild_london_lsoa2021.py
+.\.venv\Scripts\python.exe scripts\export_web_data.py
 ```
 
 This generates compact, simplified browser assets under `web/public/data`. Source data remains under `2_local_processing/3_gold`.
 
+The boundary refresh uses the public GLA postcode-unit layer for EC, WC, W1 and
+SW1 and validates it against official February 2026 ONS live-postcode centroids.
+The transaction rebuild reads the validated HM Land Registry Parquet archive from
+`s3://landregistryproject/silver/land_registry_data.parquet/`.
+
 ## Checks
 
 ```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q
 cd web
 pnpm build
 pnpm test

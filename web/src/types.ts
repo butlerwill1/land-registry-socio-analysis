@@ -21,29 +21,44 @@ export interface TransactionYear {
 export interface DistrictRecord {
   district: string;
   areaName: string;
+  hasSocioeconomicSummary: boolean;
   lsoaCount: number;
   excludedLsoaCount: number;
-  meanOverlapShare: number;
+  meanOverlapShare: number | null;
   areaKm2: number;
-  population: number;
-  populationDensity: number;
-  overall: number;
-  income: number;
-  employment: number;
-  education: number;
-  health: number;
-  crime: number;
-  housingBarriers: number;
-  environment: number;
+  population: number | null;
+  populationDensity: number | null;
+  overall: number | null;
+  income: number | null;
+  employment: number | null;
+  education: number | null;
+  health: number | null;
+  crime: number | null;
+  housingBarriers: number | null;
+  environment: number | null;
   history: TransactionYear[];
 }
 
 export interface AppMetadata {
+  dataAsOf: string;
+  boundarySource: string;
+  boundarySources: Array<{
+    name: string;
+    role: string;
+    url: string;
+    licence: string;
+    attribution?: string;
+  }>;
+  boundaryMethod: string;
+  boundarySourceRetrievedOn: string;
+  centralBoundaryCoverageShare: number;
+  centralBoundaryDistrictMatchShare: number;
   districtCount: number;
   lsoaCount: number;
   years: number[];
   latestCompleteYear: number;
   latestYear: number;
+  latestYearIsPartial: boolean;
   transactionCount: number;
 }
 

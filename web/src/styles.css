@@ -278,6 +278,10 @@ select:focus-visible {
   line-height: 1.4;
 }
 
+.partial-year-hint {
+  color: #855d18;
+}
+
 .control-error {
   margin: 7px 0 0;
   color: #a43220;
@@ -646,6 +650,19 @@ select:focus-visible {
 
 .indicator-row strong {
   font-variant-numeric: tabular-nums;
+}
+
+.socio-unavailable {
+  margin: 14px 0 2px;
+  padding: 12px 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.indicator-unavailable {
+  color: var(--muted);
+  font-size: 9px;
+  text-align: right;
 }
 
 .percentile-bar {
