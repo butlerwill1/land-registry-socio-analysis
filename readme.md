@@ -3,7 +3,7 @@
 
 ## Project Overview
 
-This project analyses historic UK Land Registry data, sorted by postcode district (e.g., SW11, E3). Our approach enriches this data with 2019 socio-economic information, which originally covers finer geographic areas than postcode districts. To align these datasets, we aggregate the socio-economic data from these smaller areas to their corresponding postcode districts using geospatial merging techniques. This process allows us to integrate detailed socio-economic insights with property transaction data. For example, we can calculate the average price for flats in SW11 in 2023, while also providing a socio-economic profile of the area. By merging these datasets, we offer location-based insights, blending property values with socio-economic contexts to uncover deeper trends and patterns.
+This project analyses historic UK Land Registry data, sorted by postcode district (e.g., SW11, E3). Our approach enriches this data with 2025 socio-economic information, which covers 2021 Lower-layer Super Output Areas (LSOAs). To align these datasets, we assign each LSOA to the postcode district containing the largest share of its area and aggregate the indicators to district level. For example, we can calculate the average price for flats in SW11 in 2023, while also providing a socio-economic profile of the area.
 
 ![Example Dashboard Output Of London Postcode District Comparisons](/Images/LondonDistrictsComparison.png)
 
@@ -18,6 +18,27 @@ This project uses a **script-based workflow** with automated deployment to AWS E
 2. Upload raw data: `./scripts/upload_to_bronze.sh ~/Downloads/land_registry_data.csv`
 3. Convert to Parquet: `./scripts/run_on_emr.sh bronze_to_silver.py <cluster-id>`
 4. Run aggregations: `./scripts/run_on_emr.sh silver_to_gold.py <cluster-id>`
+5. Refresh Central London boundaries: `python 2_local_processing/postcode_boundaries.py --refresh`
+6. Rebuild London flat transactions from S3: `python 2_local_processing/rebuild_london_transactions.py`
+7. Rebuild the London socioeconomic assets: `python 2_local_processing/rebuild_london_lsoa2021.py`
+8. Export browser assets: `python scripts/export_web_data.py`
+
+The Central London boundary rebuild dissolves public GLA postcode-unit polygons
+for EC, WC, W1 and SW1, replacing the incomplete central footprint while
+retaining the existing outer-London districts. It validates coverage and district
+alignment against official February 2026 ONS live-postcode centroids. The
+transaction rebuild reads the validated HM Land Registry silver Parquet archive
+in S3 and calculates exact flat-price statistics for every mapped district.
+
+The LSOA rebuild downloads the official 2021 LSOA geometry and corrected IMD 2025
+data. Boundary-crossing LSOAs are assigned to the postcode district with the
+largest area overlap. The winning share, runner-up share and confidence are
+retained in the output. Only LSOAs with at least 99.9% of their polygon inside
+one postcode district contribute to district socioeconomic summaries; the small
+tolerance allows for geometric precision noise. Boundary-crossing LSOAs remain
+visible for auditing but are excluded from summaries. Very small postal districts
+without a fully contained LSOA keep their transaction data but do not receive a
+fabricated socioeconomic summary.
 
 📖 **[Read the EMR Workflow Guide](docs/EMR_WORKFLOW.md)** for detailed instructions.
 
@@ -42,10 +63,19 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 - **Price Paid HM Land Registry**: Sales prices of properties in England and Wales from 1995. The file is around 5Gb and can be downloaded [here](https://www.gov.uk/government/statistical-data-sets/price-paid-data-downloads) Read more in the LandRegistryDataDoc.md file.
 - **Postcode District Polygons**: Polygons in shapely format defining Postcode Areas, Districts and Sectors can be downloaded
 [here](https://datashare.ed.ac.uk/handle/10283/2597). From Edinburgh DataShare.
+- **Central London Postcode Units**: The public Greater London Authority
+  [Postcode Units ArcGIS layer](https://gis.london.gov.uk/arcgis/rest/services/IMA_explorer/ima_context_public_02/MapServer/8)
+  supplies EC, WC, W1 and SW1 unit polygons, which are dissolved to district level
+  and checked against the official ONS live-postcode release.
 - **England Polygons**: Polygons to match onto the socio econmic xlsx file 
-- **English Indices of Deprivation - Socio-economic Data** [Statistics](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2019) on relative deprivation in small areas in England. Gives the statistics in a shapely file. Read more in the SocioEconomicDataDoc.md file.
+- **English Indices of Deprivation 2025**: [Official statistics and corrected data](https://www.gov.uk/government/statistics/english-indices-of-deprivation-2025) for 2021 LSOAs.
+
+## Local web application
+
+The professional map dashboard is in [`web/`](web/README.md). Run `web/start-local.ps1` in PowerShell, then open `http://127.0.0.1:4173`. Browser-ready data is generated from the gold GeoPackages by `scripts/export_web_data.py`. The current build contains 314 postcode districts, 5,921 mapped LSOAs and 2,153,409 flat transactions. The 2026 data is explicitly marked partial and currently includes registered transfers through 30 January 2026.
 
 ## Built With
+
 - **AWS EMR Clusters**: A Cloud Big Data platform for processing massive amounts of data which can host big data software technologies such as Apache Spark.
 - **EMR Notebooks**: Jupyter notebook environment for interactive development and data exploration on EMR clusters.
 - **Terraform**: An Infrastructure as Code (IaC) technology used as a clear and convinient way to create an AWS EMR Cluster.

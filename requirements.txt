@@ -5,6 +5,8 @@ regex
 matplotlib
 geopandas
 shapely
+pyarrow
+boto3
 folium
 streamlit
 streamlit_folium

@@ -1,0 +1,56 @@
+{
+  "centralDistrictCount": 59,
+  "currentValidation": {
+    "coverageShare": 0.9813,
+    "coveredByCentralGeometry": 16201,
+    "districtCount": 59,
+    "matchingDistrictCount": 15349,
+    "matchingDistrictShare": 0.9297,
+    "nonGeographicDistrictsExcluded": [
+      "EC1P",
+      "EC3P",
+      "EC4P"
+    ],
+    "postcodeCount": 16509
+  },
+  "currentValidationReferenceDate": "February 2026",
+  "currentValidationSource": "ONS live postcode centroids",
+  "currentValidationSourceUrl": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Online_ONS_Postcode_Directory_Live/FeatureServer/1",
+  "districtCount": 317,
+  "landmarkCoverage": {
+    "City of London": "EC2R",
+    "Holborn": "WC1V",
+    "Mayfair": "W1J",
+    "Soho": "W1F",
+    "Westminster": "SW1A"
+  },
+  "method": "GLA postcode units dissolved for EC, WC, W1 and SW1; their footprint is subtracted from retained GeoLytix 2012 districts to prevent mixed-source overlaps",
+  "retrievedOn": "2026-07-23",
+  "source": "Mixed GLA and GeoLytix postcode district boundary build",
+  "sourceUrl": "https://gis.london.gov.uk/arcgis/rest/services/IMA_explorer/ima_context_public_02/MapServer/8",
+  "sources": [
+    {
+      "licence": "Public ArcGIS service; confirm commercial reuse terms",
+      "name": "Greater London Authority Postcode Units ArcGIS layer",
+      "role": "EC, WC, W1 and SW1 postcode unit polygons",
+      "url": "https://gis.london.gov.uk/arcgis/rest/services/IMA_explorer/ima_context_public_02/MapServer/8"
+    },
+    {
+      "attribution": "Postal Boundaries (C) GeoLytix copyright and database right 2012; contains Ordnance Survey, Royal Mail and National Statistics data (C) their respective 2012 rights holders",
+      "licence": "Open Government Licence",
+      "name": "GeoLytix postal boundaries 2012",
+      "role": "Outer-London postcode district polygons",
+      "url": "https://datashare.ed.ac.uk/handle/10283/2597"
+    },
+    {
+      "licence": "Contains Ordnance Survey and ONS intellectual property",
+      "name": "ONS live postcode centroids",
+      "role": "February 2026 currentness validation",
+      "url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Online_ONS_Postcode_Directory_Live/FeatureServer/1"
+    }
+  ],
+  "topologyValidation": {
+    "overlapToleranceM2": 1.0,
+    "positiveAreaOverlapPairs": 0
+  }
+}

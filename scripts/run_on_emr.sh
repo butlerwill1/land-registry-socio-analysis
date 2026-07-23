@@ -61,23 +61,22 @@ CLUSTER_ID=$2
 # Determine script location based on name
 case "$SCRIPT_NAME" in
     bronze_to_silver.py)
-        LOCAL_SCRIPTS_DIR="src/silver"
+        LOCAL_SCRIPTS_DIR="1_spark_processing/2_silver"
         ;;
     silver_to_gold.py)
-        LOCAL_SCRIPTS_DIR="src/gold"
+        LOCAL_SCRIPTS_DIR="1_spark_processing/3_gold"
         ;;
     *)
-        # Default to searching in all subdirectories
-        print_warning "Unknown script name. Searching in src/ subdirectories..."
-        if [ -f "src/silver/${SCRIPT_NAME}" ]; then
-            LOCAL_SCRIPTS_DIR="src/silver"
-        elif [ -f "src/gold/${SCRIPT_NAME}" ]; then
-            LOCAL_SCRIPTS_DIR="src/gold"
-        elif [ -f "src/local/${SCRIPT_NAME}" ]; then
-            print_error "Script ${SCRIPT_NAME} is in src/local/ - this should be run locally, not on EMR"
+        print_warning "Unknown script name. Searching processing directories..."
+        if [ -f "1_spark_processing/2_silver/${SCRIPT_NAME}" ]; then
+            LOCAL_SCRIPTS_DIR="1_spark_processing/2_silver"
+        elif [ -f "1_spark_processing/3_gold/${SCRIPT_NAME}" ]; then
+            LOCAL_SCRIPTS_DIR="1_spark_processing/3_gold"
+        elif [ -f "2_local_processing/${SCRIPT_NAME}" ]; then
+            print_error "Script ${SCRIPT_NAME} is local-only and should not run on EMR"
             exit 1
         else
-            print_error "Script not found in any src/ subdirectory"
+            print_error "Script not found in a processing directory"
             exit 1
         fi
         ;;
@@ -89,8 +88,8 @@ if [ ! -f "$SCRIPT_PATH" ]; then
     print_error "Script not found: $SCRIPT_PATH"
     echo ""
     echo "Available EMR scripts:"
-    echo "  src/silver/bronze_to_silver.py"
-    echo "  src/gold/silver_to_gold.py"
+    echo "  1_spark_processing/2_silver/bronze_to_silver.py"
+    echo "  1_spark_processing/3_gold/silver_to_gold.py"
     exit 1
 fi
 
@@ -110,7 +109,7 @@ fi
 # Check if pyspark_functions.py is needed and upload it
 PY_FILES_ARG=""
 if grep -q "import pyspark_functions" "$SCRIPT_PATH"; then
-    print_info "Script imports pyspark_functions.py, uploading dependency..."
+    print_info "Uploading Spark Python dependencies..."
 
     # Determine where pyspark_functions.py is located (same directory as the script)
     SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
@@ -119,7 +118,13 @@ if grep -q "import pyspark_functions" "$SCRIPT_PATH"; then
     if [ -f "$PYSPARK_FUNCS_PATH" ]; then
         aws s3 cp "$PYSPARK_FUNCS_PATH" "${S3_SCRIPTS_PATH}/pyspark_functions.py"
         print_info "✓ Uploaded pyspark_functions.py from ${SCRIPT_DIR}/"
-        PY_FILES_ARG="--py-files,${S3_SCRIPTS_PATH}/pyspark_functions.py,"
+        POSTCODE_UTILS_PATH="${SCRIPT_DIR}/postcode_utils.py"
+        if [ ! -f "$POSTCODE_UTILS_PATH" ]; then
+            print_error "postcode_utils.py not found at $POSTCODE_UTILS_PATH"
+            exit 1
+        fi
+        aws s3 cp "$POSTCODE_UTILS_PATH" "${S3_SCRIPTS_PATH}/postcode_utils.py"
+        PY_FILES_ARG="--py-files,${S3_SCRIPTS_PATH}/pyspark_functions.py,${S3_SCRIPTS_PATH}/postcode_utils.py,"
     else
         print_warning "pyspark_functions.py not found at $PYSPARK_FUNCS_PATH"
     fi
