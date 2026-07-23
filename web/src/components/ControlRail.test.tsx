@@ -49,6 +49,7 @@ function renderRail(plan: "free" | "pro") {
   render(
     <ControlRail
       metadata={metadata}
+      availableYears={plan === "free" ? [2024, 2025] : metadata.years}
       districts={[district]}
       metric="medianPrice"
       year={2025}

@@ -344,6 +344,18 @@ select:focus-visible {
   line-height: 1.4;
 }
 
+.inline-upgrade {
+  padding: 0;
+  color: var(--accent-dark);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .partial-year-hint {
   color: #855d18;
 }

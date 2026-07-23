@@ -27,6 +27,7 @@ describe("PricingDialog", () => {
     expect(screen.getByRole("heading", { name: "Free" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Pro" })).toBeVisible();
     expect(screen.getByText("£15")).toBeVisible();
+    expect(screen.getByText("5 years of prices and transactions")).toBeVisible();
     expect(screen.getByText("2021 LSOA-level map detail")).toBeVisible();
   });
 

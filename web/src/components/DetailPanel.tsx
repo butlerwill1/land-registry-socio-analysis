@@ -6,7 +6,7 @@ import {
   LockKeyhole,
 } from "lucide-react";
 import { getPercentile, getYearOnYear, getYearRecord, socioeconomicMetricKeys } from "../lib/metrics";
-import type { PlanId } from "../lib/plans";
+import { getAvailableTransactionHistory, type PlanId } from "../lib/plans";
 import type { DistrictRecord, SocioMetricKey } from "../types";
 import { PriceTrend } from "./PriceTrend";
 
@@ -34,16 +34,24 @@ export function DetailPanel({
   districts,
   year,
   plan,
+  latestCompleteYear,
   onUpgrade,
 }: {
   district: DistrictRecord;
   districts: DistrictRecord[];
   year: number;
   plan: PlanId;
+  latestCompleteYear: number;
   onUpgrade: () => void;
 }) {
-  const current = getYearRecord(district, year);
-  const yearOnYear = getYearOnYear(district, year);
+  const availableHistory = getAvailableTransactionHistory(
+    plan,
+    district.history,
+    latestCompleteYear,
+  );
+  const availableDistrict = { ...district, history: availableHistory };
+  const current = getYearRecord(availableDistrict, year);
+  const yearOnYear = getYearOnYear(availableDistrict, year);
 
   const kpis = [
     {
@@ -96,7 +104,7 @@ export function DetailPanel({
           <h2>Price trend</h2>
           <span>Median flat price</span>
         </div>
-        <PriceTrend history={district.history} year={year} />
+        <PriceTrend history={availableHistory} year={year} />
       </section>
 
       <section className="panel-section socioeconomic-section">

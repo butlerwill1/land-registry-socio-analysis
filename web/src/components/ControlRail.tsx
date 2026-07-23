@@ -14,6 +14,7 @@ import type { AppMetadata, DistrictRecord, MetricKey } from "../types";
 
 interface ControlRailProps {
   metadata: AppMetadata;
+  availableYears: number[];
   districts: DistrictRecord[];
   metric: MetricKey;
   year: number;
@@ -31,6 +32,7 @@ interface ControlRailProps {
 
 export function ControlRail({
   metadata,
+  availableYears,
   districts,
   metric,
   year,
@@ -63,7 +65,7 @@ export function ControlRail({
   }, [districts, query]);
 
   const selected = districts.find((district) => district.district === selectedDistrict);
-  const yearIndex = metadata.years.indexOf(year);
+  const yearIndex = availableYears.indexOf(year);
   const isPriceMetric = priceMetricKeys.has(metric);
   const isPartialYear = year > metadata.latestCompleteYear;
   const showResults = query !== selectedDistrict && results.length > 0;
@@ -137,7 +139,7 @@ export function ControlRail({
             title="Previous year"
             aria-label="Previous year"
             disabled={yearIndex <= 0}
-            onClick={() => onYearChange(metadata.years[yearIndex - 1])}
+            onClick={() => onYearChange(availableYears[yearIndex - 1])}
           >
             <ChevronLeft size={18} />
           </button>
@@ -146,8 +148,8 @@ export function ControlRail({
             type="button"
             title="Next year"
             aria-label="Next year"
-            disabled={yearIndex >= metadata.years.length - 1}
-            onClick={() => onYearChange(metadata.years[yearIndex + 1])}
+            disabled={yearIndex >= availableYears.length - 1}
+            onClick={() => onYearChange(availableYears[yearIndex + 1])}
           >
             <ChevronRight size={18} />
           </button>
@@ -157,15 +159,23 @@ export function ControlRail({
           className="range-control"
           type="range"
           min={0}
-          max={metadata.years.length - 1}
+          max={availableYears.length - 1}
           value={yearIndex}
-          onChange={(event) => onYearChange(metadata.years[Number(event.target.value)])}
+          onChange={(event) => onYearChange(availableYears[Number(event.target.value)])}
         />
         <div className="range-labels" aria-hidden="true">
-          <span>{metadata.years[0]}</span>
-          <span>{metadata.years[Math.floor(metadata.years.length / 2)]}</span>
-          <span>{metadata.latestYear}</span>
+          <span>{availableYears[0]}</span>
+          <span>{availableYears[Math.floor(availableYears.length / 2)]}</span>
+          <span>{availableYears.at(-1)}</span>
         </div>
+        {plan === "free" && (
+          <p className="control-hint">
+            Free includes {availableYears[0]}-{availableYears.at(-1)}.{" "}
+            <button type="button" className="inline-upgrade" onClick={onUpgrade}>
+              Unlock full history
+            </button>
+          </p>
+        )}
         {isPartialYear && (
           <p className="control-hint partial-year-hint">
             Registered sales only. Recent totals will rise as HM Land Registry records complete.

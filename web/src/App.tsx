@@ -4,7 +4,11 @@ import { AppHeader } from "./components/AppHeader";
 import { ControlRail } from "./components/ControlRail";
 import { loadInitialData, loadLsoaBoundaries } from "./lib/data";
 import { priceMetricKeys } from "./lib/metrics";
-import { isMetricAvailable, type PlanId } from "./lib/plans";
+import {
+  getAvailableTransactionYears,
+  isMetricAvailable,
+  type PlanId,
+} from "./lib/plans";
 import type {
   AppMetadata,
   AtlasFeatureCollection,
@@ -62,6 +66,16 @@ export function App() {
     () => data?.districts.find((district) => district.district === selectedDistrict),
     [data, selectedDistrict],
   );
+  const availableYears = useMemo(
+    () =>
+      data
+        ? getAvailableTransactionYears(plan, data.metadata.years, data.metadata.latestCompleteYear)
+        : [],
+    [data, plan],
+  );
+  const selectedYear = availableYears.includes(year)
+    ? year
+    : (availableYears.at(-1) ?? year);
 
   const handleLsoaChange = async (enabled: boolean) => {
     setLsoaEnabled(enabled);
@@ -123,6 +137,13 @@ export function App() {
             ? () => {
                 setPlan("free");
                 setLsoaEnabled(false);
+                setYear(
+                  getAvailableTransactionYears(
+                    "free",
+                    data.metadata.years,
+                    data.metadata.latestCompleteYear,
+                  ).at(-1) ?? data.metadata.latestCompleteYear,
+                );
                 if (!isMetricAvailable("free", metric)) setMetric("medianPrice");
               }
             : undefined
@@ -131,9 +152,10 @@ export function App() {
       <div className="workspace">
         <ControlRail
           metadata={data.metadata}
+          availableYears={availableYears}
           districts={data.districts}
           metric={metric}
-          year={year}
+          year={selectedYear}
           selectedDistrict={selectedDistrict}
           lsoaEnabled={lsoaEnabled}
           lsoaLoading={lsoaLoading}
@@ -151,7 +173,7 @@ export function App() {
             districts={data.districts}
             selectedDistrict={selectedDistrict}
             metric={metric}
-            year={year}
+            year={selectedYear}
             lsoaEnabled={lsoaEnabled}
             lsoaBoundaries={lsoaBoundaries}
             onDistrictChange={setSelectedDistrict}
@@ -161,8 +183,9 @@ export function App() {
           <DetailPanel
             district={selected}
             districts={data.districts}
-            year={year}
+            year={selectedYear}
             plan={plan}
+            latestCompleteYear={data.metadata.latestCompleteYear}
             onUpgrade={() => setPricingOpen(true)}
           />
         </Suspense>

@@ -40,6 +40,19 @@ test("gates premium map detail and supports a local Pro preview", async ({ page 
   await expect(page.getByText("SW11 · LSOA detail")).toBeVisible({ timeout: 20_000 });
 });
 
+test("limits Free transaction research to five complete years", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Free includes 2021-2025.")).toBeVisible();
+  await expect(page.locator('input[type="range"]#year-range')).toHaveAttribute("max", "4");
+
+  const previousYear = page.getByRole("button", { name: "Previous year" });
+  for (let index = 0; index < 4; index += 1) {
+    await previousYear.click();
+  }
+  await expect(page.locator('output[for="year-range"]')).toHaveText("2021");
+  await expect(previousYear).toBeDisabled();
+});
+
 test("shows annual pricing and the launch disclaimer", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Upgrade" }).click();
@@ -74,7 +87,7 @@ test("shows repaired Central London sales without inventing an LSOA summary", as
 });
 
 test("marks the latest transaction year as partial and explains reporting lag", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/?demoPlan=pro");
   await page.getByRole("button", { name: "Next year" }).click();
 
   await expect(page.getByText("Partial", { exact: true })).toBeVisible();

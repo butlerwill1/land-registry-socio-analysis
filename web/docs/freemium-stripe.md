@@ -9,7 +9,7 @@ payment system.
 Free:
 
 - all London postcode districts
-- median and average flat prices, transaction counts and history
+- median and average flat prices and transaction counts for the latest five complete years
 - district-level overall IMD score
 
 Pro launch hypothesis:
