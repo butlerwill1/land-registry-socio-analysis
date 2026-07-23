@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("loads the London map workspace and supports core filters", async ({ page }) => {
   await page.goto("/?demoPlan=pro");
-  await expect(page.getByText("London Flat Atlas")).toBeVisible();
+  await expect(page.getByText("flAtlas")).toBeVisible();
   await expect(page.getByRole("heading", { name: "SW11" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByLabel("London postcode district map")).toBeVisible();
   await expect(

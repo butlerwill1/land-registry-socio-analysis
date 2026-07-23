@@ -1,4 +1,4 @@
-# London Flat Atlas API
+# flAtlas API
 
 FastAPI service for premium data access, account entitlements, and Stripe Billing.
 

@@ -26,7 +26,7 @@ export function AppHeader({
         <span className="brand-mark" aria-hidden="true">
           <MapPinned size={21} strokeWidth={2} />
         </span>
-        <span>London Flat Atlas</span>
+        <span>flAtlas</span>
       </div>
       <div className="header-meta">
         <span className="source-line">

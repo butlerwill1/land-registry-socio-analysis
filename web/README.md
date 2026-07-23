@@ -1,4 +1,4 @@
-# London Flat Atlas
+# flAtlas
 
 Local React and TypeScript application for exploring London flat transactions and 2025 socioeconomic indicators by postcode district and 2021 LSOA.
 

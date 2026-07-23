@@ -3,9 +3,9 @@ requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "london-flat-atlas-api"
+name = "flatlas-api"
 version = "0.1.0"
-description = "FastAPI backend for London Flat Atlas data entitlements and billing."
+description = "FastAPI backend for flAtlas data entitlements and billing."
 requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.139.2",

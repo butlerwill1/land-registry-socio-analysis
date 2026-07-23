@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "London Flat Atlas API"
+    app_name: str = "flAtlas API"
     app_env: Literal["development", "test", "production"] = "development"
     app_base_url: str = "http://127.0.0.1:4173"
     api_prefix: str = "/api"

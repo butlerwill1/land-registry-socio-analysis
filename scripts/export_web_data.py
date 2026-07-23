@@ -1,4 +1,4 @@
-"""Export compact, browser-ready assets for the London Flat Atlas web app."""
+"""Export compact, browser-ready assets for the flAtlas web app."""
 
 from __future__ import annotations
 

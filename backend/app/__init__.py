@@ -1,2 +1,1 @@
-"""London Flat Atlas API package."""
-
+"""flAtlas API package."""

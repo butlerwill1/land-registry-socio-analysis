@@ -199,7 +199,7 @@ export function App() {
     return (
       <div className="full-state error-state" role="alert">
         <AlertTriangle size={28} />
-        <h1>London Flat Atlas could not start</h1>
+        <h1>flAtlas could not start</h1>
         <p>{error}</p>
       </div>
     );
@@ -209,7 +209,7 @@ export function App() {
     return (
       <div className="full-state" aria-live="polite">
         <LoaderCircle className="spin" size={28} />
-        <h1>Loading London Flat Atlas</h1>
+        <h1>Loading flAtlas</h1>
       </div>
     );
   }
