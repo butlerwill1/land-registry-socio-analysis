@@ -4,6 +4,7 @@ import { AppHeader } from "./components/AppHeader";
 import { ControlRail } from "./components/ControlRail";
 import { loadInitialData, loadLsoaBoundaries } from "./lib/data";
 import { priceMetricKeys } from "./lib/metrics";
+import { isMetricAvailable, type PlanId } from "./lib/plans";
 import type {
   AppMetadata,
   AtlasFeatureCollection,
@@ -15,6 +16,14 @@ const LondonMap = lazy(() => import("./components/LondonMap"));
 const DetailPanel = lazy(() =>
   import("./components/DetailPanel").then((module) => ({ default: module.DetailPanel })),
 );
+const PricingDialog = lazy(() =>
+  import("./components/PricingDialog").then((module) => ({ default: module.PricingDialog })),
+);
+
+function getInitialPlan(): PlanId {
+  if (!import.meta.env.DEV) return "free";
+  return new URLSearchParams(window.location.search).get("demoPlan") === "pro" ? "pro" : "free";
+}
 
 interface LoadedData {
   metadata: AppMetadata;
@@ -32,6 +41,8 @@ export function App() {
   const [lsoaLoading, setLsoaLoading] = useState(false);
   const [lsoaError, setLsoaError] = useState<string>();
   const [lsoaBoundaries, setLsoaBoundaries] = useState<AtlasFeatureCollection>();
+  const [plan, setPlan] = useState<PlanId>(getInitialPlan);
+  const [pricingOpen, setPricingOpen] = useState(false);
 
   useEffect(() => {
     loadInitialData()
@@ -72,6 +83,10 @@ export function App() {
   };
 
   const handleMetricChange = (nextMetric: MetricKey) => {
+    if (!isMetricAvailable(plan, nextMetric)) {
+      setPricingOpen(true);
+      return;
+    }
     setMetric(nextMetric);
     if (priceMetricKeys.has(nextMetric) || nextMetric === "populationDensity") {
       setLsoaEnabled(false);
@@ -99,7 +114,20 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <AppHeader metadata={data.metadata} />
+      <AppHeader
+        metadata={data.metadata}
+        plan={plan}
+        onOpenPricing={() => setPricingOpen(true)}
+        onExitPreview={
+          plan === "pro" && import.meta.env.DEV
+            ? () => {
+                setPlan("free");
+                setLsoaEnabled(false);
+                if (!isMetricAvailable("free", metric)) setMetric("medianPrice");
+              }
+            : undefined
+        }
+      />
       <div className="workspace">
         <ControlRail
           metadata={data.metadata}
@@ -110,6 +138,8 @@ export function App() {
           lsoaEnabled={lsoaEnabled}
           lsoaLoading={lsoaLoading}
           lsoaError={lsoaError}
+          plan={plan}
+          onUpgrade={() => setPricingOpen(true)}
           onMetricChange={handleMetricChange}
           onYearChange={setYear}
           onDistrictChange={setSelectedDistrict}
@@ -128,9 +158,24 @@ export function App() {
           />
         </Suspense>
         <Suspense fallback={<div className="detail-loading"><LoaderCircle className="spin" size={22} /> Loading analysis</div>}>
-          <DetailPanel district={selected} districts={data.districts} year={year} />
+          <DetailPanel
+            district={selected}
+            districts={data.districts}
+            year={year}
+            plan={plan}
+            onUpgrade={() => setPricingOpen(true)}
+          />
         </Suspense>
       </div>
+      <Suspense fallback={null}>
+        <PricingDialog
+          open={pricingOpen}
+          currentPlan={plan}
+          allowLocalPreview={import.meta.env.DEV}
+          onClose={() => setPricingOpen(false)}
+          onPreviewPro={() => setPlan("pro")}
+        />
+      </Suspense>
     </div>
   );
 }

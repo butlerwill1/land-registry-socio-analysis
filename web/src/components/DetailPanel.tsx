@@ -3,8 +3,10 @@ import {
   ChartNoAxesCombined,
   Database,
   Gauge,
+  LockKeyhole,
 } from "lucide-react";
 import { getPercentile, getYearOnYear, getYearRecord, socioeconomicMetricKeys } from "../lib/metrics";
+import type { PlanId } from "../lib/plans";
 import type { DistrictRecord, SocioMetricKey } from "../types";
 import { PriceTrend } from "./PriceTrend";
 
@@ -31,10 +33,14 @@ export function DetailPanel({
   district,
   districts,
   year,
+  plan,
+  onUpgrade,
 }: {
   district: DistrictRecord;
   districts: DistrictRecord[];
   year: number;
+  plan: PlanId;
+  onUpgrade: () => void;
 }) {
   const current = getYearRecord(district, year);
   const yearOnYear = getYearOnYear(district, year);
@@ -106,30 +112,41 @@ export function DetailPanel({
               <span>London percentile</span>
             </div>
             <div className="indicator-list">
-              {socioeconomicMetricKeys.map((metric) => {
-                const value = district[metric];
-                const percentile = getPercentile(
-                  value,
-                  districts.map((item) => item[metric]),
-                );
-                return (
-                  <div className="indicator-row" key={metric}>
-                    <span>{socioeconomicLabels[metric]}</span>
-                    <strong>{value === null ? "No data" : value.toFixed(1)}</strong>
-                    {percentile === null ? (
-                      <span className="indicator-unavailable">Not mapped</span>
-                    ) : (
-                      <span
-                        className="percentile-bar"
-                        title={`${percentile}th percentile in London`}
-                      >
-                        <i style={{ width: `${percentile}%` }} />
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
+              {socioeconomicMetricKeys
+                .filter((metric) => plan === "pro" || metric === "overall")
+                .map((metric) => {
+                  const value = district[metric];
+                  const percentile = getPercentile(
+                    value,
+                    districts.map((item) => item[metric]),
+                  );
+                  return (
+                    <div className="indicator-row" key={metric}>
+                      <span>{socioeconomicLabels[metric]}</span>
+                      <strong>{value === null ? "No data" : value.toFixed(1)}</strong>
+                      {percentile === null ? (
+                        <span className="indicator-unavailable">Not mapped</span>
+                      ) : (
+                        <span
+                          className="percentile-bar"
+                          title={`${percentile}th percentile in London`}
+                        >
+                          <i style={{ width: `${percentile}%` }} />
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
             </div>
+            {plan === "free" && (
+              <button type="button" className="premium-callout" onClick={onUpgrade}>
+                <LockKeyhole size={17} aria-hidden="true" />
+                <span>
+                  <strong>Unlock deeper context</strong>
+                  <small>Seven domain scores and 2021 LSOA map detail</small>
+                </span>
+              </button>
+            )}
           </>
         ) : (
           <p className="socio-unavailable">

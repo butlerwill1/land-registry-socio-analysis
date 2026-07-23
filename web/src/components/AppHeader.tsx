@@ -1,7 +1,18 @@
-import { Database, MapPinned, TriangleAlert } from "lucide-react";
+import { Database, MapPinned, Sparkles, TriangleAlert } from "lucide-react";
+import type { PlanId } from "../lib/plans";
 import type { AppMetadata } from "../types";
 
-export function AppHeader({ metadata }: { metadata: AppMetadata }) {
+export function AppHeader({
+  metadata,
+  plan,
+  onOpenPricing,
+  onExitPreview,
+}: {
+  metadata: AppMetadata;
+  plan: PlanId;
+  onOpenPricing: () => void;
+  onExitPreview?: () => void;
+}) {
   const dataAsOf = new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "short",
@@ -30,6 +41,17 @@ export function AppHeader({ metadata }: { metadata: AppMetadata }) {
             <TriangleAlert size={14} aria-hidden="true" />
             {metadata.latestYear} partial - sales recorded to {dataAsOf}
           </span>
+        )}
+        <span className={`plan-status ${plan}`}>{plan === "pro" ? "Pro preview" : "Free"}</span>
+        {plan === "pro" && onExitPreview ? (
+          <button type="button" className="header-button secondary" onClick={onExitPreview}>
+            Exit preview
+          </button>
+        ) : (
+          <button type="button" className="header-button primary" onClick={onOpenPricing}>
+            <Sparkles size={15} aria-hidden="true" />
+            Upgrade
+          </button>
         )}
       </div>
     </header>

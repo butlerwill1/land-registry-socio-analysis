@@ -8,6 +8,8 @@ export default defineConfig({
     port: 4173,
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

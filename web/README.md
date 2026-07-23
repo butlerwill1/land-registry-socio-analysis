@@ -40,3 +40,13 @@ pnpm build
 pnpm test
 pnpm test:e2e
 ```
+
+## Freemium development preview
+
+The local app starts on the Free plan. Select a locked metric or LSOA detail to open the pricing
+dialog, then use **Preview Pro locally** to exercise premium features without a Stripe account.
+You can also open `http://127.0.0.1:4173/?demoPlan=pro`.
+
+The UI calls server-side `/api/billing/checkout` and `/api/billing/portal` contracts, but those
+endpoints are intentionally not supplied by the static Vite application. See
+[`docs/freemium-stripe.md`](docs/freemium-stripe.md) for the production security and billing rollout.

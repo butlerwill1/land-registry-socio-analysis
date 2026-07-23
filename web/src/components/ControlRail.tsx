@@ -4,10 +4,12 @@ import {
   ChevronRight,
   Info,
   Layers3,
+  LockKeyhole,
   Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { metricDefinitions, priceMetricKeys } from "../lib/metrics";
+import { isMetricAvailable, type PlanId } from "../lib/plans";
 import type { AppMetadata, DistrictRecord, MetricKey } from "../types";
 
 interface ControlRailProps {
@@ -19,6 +21,8 @@ interface ControlRailProps {
   lsoaEnabled: boolean;
   lsoaLoading: boolean;
   lsoaError?: string;
+  plan: PlanId;
+  onUpgrade: () => void;
   onMetricChange: (metric: MetricKey) => void;
   onYearChange: (year: number) => void;
   onDistrictChange: (district: string) => void;
@@ -34,6 +38,8 @@ export function ControlRail({
   lsoaEnabled,
   lsoaLoading,
   lsoaError,
+  plan,
+  onUpgrade,
   onMetricChange,
   onYearChange,
   onDistrictChange,
@@ -94,7 +100,14 @@ export function ControlRail({
           id="metric-select"
           className="select-control"
           value={metric}
-          onChange={(event) => onMetricChange(event.target.value as MetricKey)}
+          onChange={(event) => {
+            const nextMetric = event.target.value as MetricKey;
+            if (!isMetricAvailable(plan, nextMetric)) {
+              onUpgrade();
+              return;
+            }
+            onMetricChange(nextMetric);
+          }}
         >
           {["Property market", "Socioeconomic context"].map((group) => (
             <optgroup key={group} label={group}>
@@ -103,6 +116,7 @@ export function ControlRail({
                 .map((definition) => (
                   <option key={definition.key} value={definition.key}>
                     {definition.label}
+                    {!isMetricAvailable(plan, definition.key) ? " - Pro" : ""}
                   </option>
                 ))}
             </optgroup>
@@ -176,9 +190,16 @@ export function ControlRail({
             type="button"
             className={lsoaEnabled ? "active" : ""}
             aria-pressed={lsoaEnabled}
-            onClick={() => onLsoaChange(true)}
+            onClick={() => {
+              if (plan === "free") {
+                onUpgrade();
+                return;
+              }
+              onLsoaChange(true);
+            }}
           >
-            {lsoaLoading ? "Loading…" : "LSOAs (2021)"}
+            {plan === "free" && <LockKeyhole size={13} aria-hidden="true" />}
+            {lsoaLoading ? "Loading..." : "LSOAs (2021)"}
           </button>
         </div>
         {isPriceMetric && !lsoaEnabled && (
