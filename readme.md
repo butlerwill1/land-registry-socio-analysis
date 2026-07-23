@@ -72,7 +72,14 @@ For exploratory analysis, you can also use Jupyter notebooks on EMR:
 
 ## Local web application
 
-The professional map dashboard is in [`web/`](web/README.md). Run `web/start-local.ps1` in PowerShell, then open `http://127.0.0.1:4173`. Browser-ready data is generated from the gold GeoPackages by `scripts/export_web_data.py`. The current build contains 314 postcode districts, 5,921 mapped LSOAs and 2,153,409 flat transactions. The 2026 data is explicitly marked partial and currently includes registered transfers through 30 January 2026.
+The professional map dashboard is in [`web/`](web/README.md), with its FastAPI
+data-entitlement and Stripe service in [`backend/`](backend/README.md). Run
+`web/start-local.ps1` in PowerShell, then open `http://127.0.0.1:4173`.
+Browser-ready Free data and private backend assets are generated from the gold
+GeoPackages by `scripts/export_web_data.py`. The current build contains 314 postcode
+districts, 5,921 mapped LSOAs and 2,153,409 flat transactions. The 2026 data is
+explicitly marked partial and currently includes registered transfers through
+30 January 2026.
 
 ## Built With
 

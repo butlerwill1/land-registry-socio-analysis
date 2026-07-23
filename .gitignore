@@ -58,6 +58,13 @@ web/playwright-report/
 web/test-results/
 *.tsbuildinfo
 .venv/
+backend/.env
+backend/.coverage
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/state/
+backend/data/*
+!backend/data/.gitkeep
 2_local_processing/3_gold/district_geometry_london_flats.gpkg
 2_local_processing/3_gold/socio_economic_postcode_london_flats.gpkg
 2_local_processing/3_gold/district_geometry_london_flats.gpkg

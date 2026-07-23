@@ -12,17 +12,23 @@ import {
 interface PricingDialogProps {
   open: boolean;
   currentPlan: PlanId;
+  authenticated: boolean;
+  authConfigured: boolean;
   allowLocalPreview?: boolean;
   onClose: () => void;
   onPreviewPro: () => void;
+  onSignIn: () => Promise<void>;
 }
 
 export function PricingDialog({
   open,
   currentPlan,
+  authenticated,
+  authConfigured,
   allowLocalPreview = false,
   onClose,
   onPreviewPro,
+  onSignIn,
 }: PricingDialogProps) {
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [checkoutPending, setCheckoutPending] = useState(false);
@@ -50,7 +56,14 @@ export function PricingDialog({
     setCheckoutPending(true);
     setCheckoutError(undefined);
     try {
-      window.location.assign(await createCheckout(interval));
+      if (!authenticated) {
+        if (!authConfigured) {
+          throw new Error("Sign-in must be configured before paid subscriptions can start.");
+        }
+        await onSignIn();
+        return;
+      }
+      window.location.assign(await createCheckout(interval, fetch, currentPlan));
     } catch (reason) {
       setCheckoutError(
         reason instanceof Error ? reason.message : "Stripe Checkout could not be started.",
@@ -139,7 +152,15 @@ export function PricingDialog({
                     disabled={isCurrent || checkoutPending}
                     onClick={startCheckout}
                   >
-                    {isCurrent ? "Current plan" : checkoutPending ? "Opening Checkout..." : "Upgrade to Pro"}
+                    {isCurrent
+                      ? "Current plan"
+                      : checkoutPending
+                        ? authenticated
+                          ? "Opening Checkout..."
+                          : "Opening sign-in..."
+                        : authenticated
+                          ? "Upgrade to Pro"
+                          : "Sign in to upgrade"}
                   </button>
                 )}
               </article>

@@ -1,8 +1,8 @@
-# Freemium and Stripe rollout
+# Freemium and Stripe architecture
 
-The current application implements the product boundary and upgrade experience, but it remains a
-static local application. The development-only Pro preview is intentionally not an authentication or
-payment system.
+The application now has a FastAPI service under `backend`. The development-only Pro
+preview exercises server-enforced data endpoints but is intentionally not proof of
+payment.
 
 ## Proposed product model
 
@@ -21,9 +21,9 @@ Pro launch hypothesis:
 
 These prices are hypotheses to validate with users, not a final commercial decision.
 
-## Billing API contract
+## Billing API
 
-The browser expects authenticated server endpoints:
+The browser uses authenticated server endpoints:
 
 ```text
 POST /api/billing/checkout
@@ -40,16 +40,18 @@ authenticated user's Stripe customer.
 
 ## Production security boundary
 
-Do not treat the React plan state as authority. Before launch:
+React plan state is never treated as authority. The implementation:
 
-1. Add authentication and a database record for each user.
-2. Create Checkout Sessions only on the server and derive the user from the authenticated session.
-3. Process signed Stripe webhooks idempotently.
-4. Store the Stripe customer, subscription, price, status and current period end.
-5. Derive entitlements on the server from the stored subscription state.
-6. Move premium datasets behind authenticated API or signed-object access. Static files under
-   `public/data` can be downloaded regardless of UI gates.
-7. Use Stripe Customer Portal for payment method changes and cancellation.
+1. signs browser users in through OIDC Authorization Code with PKCE
+2. verifies production identities with an OIDC bearer token
+3. creates or updates a database user from the verified token subject
+4. creates Checkout Sessions only on the server
+5. processes signed Stripe webhooks idempotently and reconciles current subscription state
+6. stores multiple subscriptions per user, including customer, price, status and period end
+7. derives entitlements only from eligible configured Stripe Price IDs
+8. keeps full history and LSOA data outside `web/public`
+9. returns one requested district, map cross-section, or LSOA layer
+10. uses Stripe Customer Portal for payment method changes and cancellation
 
 Minimum webhook events:
 
@@ -62,15 +64,9 @@ Minimum webhook events:
 
 Use Stripe test mode and the Stripe CLI for webhook testing before accepting live payments.
 
-## Suggested production stack
+## Production deployment
 
-Keep React and Vite for the interface. Add a small server application with:
-
-- an authentication provider
-- PostgreSQL for users, subscriptions and saved research
-- Stripe Billing with Checkout Sessions and Customer Portal
-- server-side entitlement checks
-- object storage or API responses for premium data
-
-The server can be Python/FastAPI if that better matches the data pipeline. Pydantic models are useful
-for API payloads, Stripe webhook projections and entitlement responses.
+Use PostgreSQL by setting `ATLAS_DATABASE_URL`, configure all OIDC and Stripe
+variables from `backend/.env.example`, disable development entitlements, and run the
+provided backend Dockerfile. See `backend/README.md` for local and production
+configuration.

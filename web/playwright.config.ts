@@ -14,7 +14,7 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: "pnpm dev",
+    command: "powershell -ExecutionPolicy Bypass -File .\\start-local.ps1",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: true,
     timeout: 120_000,

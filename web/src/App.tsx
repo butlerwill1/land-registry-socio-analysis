@@ -2,7 +2,13 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, LoaderCircle } from "lucide-react";
 import { AppHeader } from "./components/AppHeader";
 import { ControlRail } from "./components/ControlRail";
-import { loadInitialData, loadLsoaBoundaries } from "./lib/data";
+import {
+  loadDistrictDetail,
+  loadEntitlements,
+  loadInitialData,
+  loadLsoaBoundaries,
+  loadMapMetric,
+} from "./lib/data";
 import { priceMetricKeys } from "./lib/metrics";
 import {
   getAvailableTransactionYears,
@@ -13,6 +19,7 @@ import type {
   AppMetadata,
   AtlasFeatureCollection,
   DistrictRecord,
+  MapMetricResponse,
   MetricKey,
 } from "./types";
 
@@ -45,8 +52,12 @@ export function App() {
   const [lsoaLoading, setLsoaLoading] = useState(false);
   const [lsoaError, setLsoaError] = useState<string>();
   const [lsoaBoundaries, setLsoaBoundaries] = useState<AtlasFeatureCollection>();
+  const [premiumDistrict, setPremiumDistrict] = useState<DistrictRecord>();
+  const [mapMetric, setMapMetric] = useState<MapMetricResponse>();
   const [plan, setPlan] = useState<PlanId>(getInitialPlan);
   const [pricingOpen, setPricingOpen] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authConfigured, setAuthConfigured] = useState(false);
 
   useEffect(() => {
     loadInitialData()
@@ -62,10 +73,37 @@ export function App() {
       });
   }, []);
 
-  const selected = useMemo(
+  useEffect(() => {
+    let active = true;
+    const initialise = async () => {
+      const initialPlan = getInitialPlan();
+      if (!import.meta.env.DEV) {
+        const auth = await import("./lib/auth");
+        if (!active) return;
+        setAuthConfigured(auth.isAuthConfigured());
+        if (auth.isAuthConfigured()) await auth.initialiseAuthentication();
+      }
+      const entitlements = await loadEntitlements(initialPlan);
+      if (!active) return;
+      setAuthenticated(entitlements.authenticated);
+      if (!import.meta.env.DEV) setPlan(entitlements.plan);
+    };
+    initialise().catch(() => {
+      // Free static data remains usable when authentication or the API is unavailable.
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const publicSelected = useMemo(
     () => data?.districts.find((district) => district.district === selectedDistrict),
     [data, selectedDistrict],
   );
+  const selected =
+    plan === "pro" && premiumDistrict?.district === selectedDistrict
+      ? premiumDistrict
+      : publicSelected;
   const availableYears = useMemo(
     () =>
       data
@@ -77,23 +115,72 @@ export function App() {
     ? year
     : (availableYears.at(-1) ?? year);
 
-  const handleLsoaChange = async (enabled: boolean) => {
+  useEffect(() => {
+    if (plan !== "pro" || !data) {
+      setPremiumDistrict(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    loadDistrictDetail(selectedDistrict, plan, controller.signal)
+      .then(setPremiumDistrict)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Premium district data could not be loaded.",
+        );
+      });
+    return () => controller.abort();
+  }, [data, plan, selectedDistrict]);
+
+  useEffect(() => {
+    if (plan !== "pro" || !data) {
+      setMapMetric(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    loadMapMetric(metric, selectedYear, plan, controller.signal)
+      .then(setMapMetric)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setError(
+          reason instanceof Error ? reason.message : "Premium map data could not be loaded.",
+        );
+      });
+    return () => controller.abort();
+  }, [data, metric, plan, selectedYear]);
+
+  const lsoaMetric =
+    priceMetricKeys.has(metric) || metric === "populationDensity" ? "overall" : metric;
+
+  useEffect(() => {
+    if (!lsoaEnabled || plan !== "pro") {
+      setLsoaBoundaries(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    setLsoaError(undefined);
+    setLsoaLoading(true);
+    loadLsoaBoundaries(selectedDistrict, lsoaMetric, plan, controller.signal)
+      .then(setLsoaBoundaries)
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") return;
+        setLsoaError(
+          reason instanceof Error ? reason.message : "The LSOA layer could not be loaded.",
+        );
+        setLsoaEnabled(false);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLsoaLoading(false);
+      });
+    return () => controller.abort();
+  }, [lsoaEnabled, lsoaMetric, plan, selectedDistrict]);
+
+  const handleLsoaChange = (enabled: boolean) => {
     setLsoaEnabled(enabled);
     if (!enabled) return;
-    setLsoaError(undefined);
     if (priceMetricKeys.has(metric) || metric === "populationDensity") setMetric("overall");
-    if (lsoaBoundaries) return;
-    setLsoaLoading(true);
-    try {
-      setLsoaBoundaries(await loadLsoaBoundaries());
-    } catch (reason) {
-      setLsoaError(
-        reason instanceof Error ? reason.message : "The LSOA layer could not be loaded.",
-      );
-      setLsoaEnabled(false);
-    } finally {
-      setLsoaLoading(false);
-    }
   };
 
   const handleMetricChange = (nextMetric: MetricKey) => {
@@ -176,6 +263,7 @@ export function App() {
             year={selectedYear}
             lsoaEnabled={lsoaEnabled}
             lsoaBoundaries={lsoaBoundaries}
+            mapMetric={mapMetric}
             onDistrictChange={setSelectedDistrict}
           />
         </Suspense>
@@ -194,9 +282,15 @@ export function App() {
         <PricingDialog
           open={pricingOpen}
           currentPlan={plan}
+          authenticated={authenticated}
+          authConfigured={authConfigured}
           allowLocalPreview={import.meta.env.DEV}
           onClose={() => setPricingOpen(false)}
           onPreviewPro={() => setPlan("pro")}
+          onSignIn={async () => {
+            const { signIn } = await import("./lib/auth");
+            await signIn();
+          }}
         />
       </Suspense>
     </div>

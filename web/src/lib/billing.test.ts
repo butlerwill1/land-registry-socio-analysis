@@ -15,7 +15,12 @@ describe("billing API client", () => {
     );
     expect(request).toHaveBeenCalledWith("/api/billing/checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Dev-Plan": "free",
+        "X-Dev-User": "local-preview",
+      },
       body: JSON.stringify({ plan: "pro", interval: "year" }),
     });
   });
@@ -53,6 +58,13 @@ describe("billing API client", () => {
     await expect(createCustomerPortal(request)).resolves.toBe(
       "https://billing.stripe.test/portal",
     );
-    expect(request).toHaveBeenCalledWith("/api/billing/portal", { method: "POST" });
+    expect(request).toHaveBeenCalledWith("/api/billing/portal", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "X-Dev-Plan": "pro",
+        "X-Dev-User": "local-preview",
+      },
+    });
   });
 });

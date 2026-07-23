@@ -1,4 +1,5 @@
-import type { BillingInterval } from "./plans";
+import { buildApiHeaders } from "./api";
+import type { BillingInterval, PlanId } from "./plans";
 
 interface CheckoutResponse {
   url: string;
@@ -19,10 +20,12 @@ async function readResponseBody(response: Response): Promise<CheckoutResponse | 
 export async function createCheckout(
   interval: BillingInterval,
   request: typeof fetch = fetch,
+  plan: PlanId = "free",
 ): Promise<string> {
   const response = await request("/api/billing/checkout", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    headers: buildApiHeaders(plan, "json"),
     body: JSON.stringify({ plan: "pro", interval }),
   });
   const body = await readResponseBody(response);
@@ -41,7 +44,11 @@ export async function createCheckout(
 }
 
 export async function createCustomerPortal(request: typeof fetch = fetch): Promise<string> {
-  const response = await request("/api/billing/portal", { method: "POST" });
+  const response = await request("/api/billing/portal", {
+    method: "POST",
+    credentials: "include",
+    headers: buildApiHeaders("pro"),
+  });
   const body = await readResponseBody(response);
 
   if (!response.ok) {

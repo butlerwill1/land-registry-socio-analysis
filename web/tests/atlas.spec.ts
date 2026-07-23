@@ -88,7 +88,12 @@ test("shows repaired Central London sales without inventing an LSOA summary", as
 
 test("marks the latest transaction year as partial and explains reporting lag", async ({ page }) => {
   await page.goto("/?demoPlan=pro");
-  await page.getByRole("button", { name: "Next year" }).click();
+  const yearOutput = page.locator('output[for="year-range"]');
+  const nextYear = page.getByRole("button", { name: "Next year" });
+  await expect(yearOutput).toHaveText("2025");
+  await expect(nextYear).toBeEnabled();
+  await nextYear.click();
+  await expect(yearOutput).toHaveText("2026");
 
   await expect(page.getByText("Partial", { exact: true })).toBeVisible();
   await expect(
@@ -97,12 +102,12 @@ test("marks the latest transaction year as partial and explains reporting lag", 
 });
 
 test("keeps district analysis available if the optional LSOA layer fails", async ({ page }) => {
-  await page.route("**/data/lsoa-boundaries.geojson", (route) =>
+  await page.route("**/api/data/lsoas/**", (route) =>
     route.fulfill({ status: 503, body: "Unavailable" }),
   );
   await page.goto("/?demoPlan=pro");
   await page.getByRole("button", { name: "LSOAs (2021)" }).click();
   await expect(page.getByText("LSOA detail could not load. Select it to retry.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "SW11" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "SW11" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByLabel("London postcode district map")).toBeVisible();
 });

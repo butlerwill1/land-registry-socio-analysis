@@ -37,6 +37,7 @@ export interface DistrictRecord {
   housingBarriers: number | null;
   environment: number | null;
   history: TransactionYear[];
+  percentiles?: Partial<Record<SocioMetricKey, number>> | null;
 }
 
 export interface AppMetadata {
@@ -66,4 +67,17 @@ export type AtlasFeatureCollection = FeatureCollection<
   Geometry,
   Record<string, string | number | boolean | null>
 >;
+
+export interface MapMetricResponse {
+  metric: MetricKey;
+  year: number;
+  plan: "free" | "pro";
+  values: Array<{ district: string; value: number | null }>;
+}
+
+export interface EntitlementResponse {
+  plan: "free" | "pro";
+  authenticated: boolean;
+  features: string[];
+}
 import type { FeatureCollection, Geometry } from "geojson";

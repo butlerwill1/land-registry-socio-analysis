@@ -7,9 +7,12 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof PricingDial
   const props: React.ComponentProps<typeof PricingDialog> = {
     open: true,
     currentPlan: "free",
+    authenticated: true,
+    authConfigured: false,
     allowLocalPreview: true,
     onClose: vi.fn(),
     onPreviewPro: vi.fn(),
+    onSignIn: vi.fn(),
     ...overrides,
   };
   render(<PricingDialog {...props} />);
@@ -54,5 +57,27 @@ describe("PricingDialog", () => {
   it("does not expose the local preview in a production-like state", () => {
     renderDialog({ allowLocalPreview: false });
     expect(screen.queryByRole("button", { name: "Preview Pro locally" })).not.toBeInTheDocument();
+  });
+
+  it("starts sign-in before checkout for an anonymous production user", async () => {
+    const props = renderDialog({
+      authenticated: false,
+      authConfigured: true,
+      allowLocalPreview: false,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Sign in to upgrade" }));
+    expect(props.onSignIn).toHaveBeenCalledOnce();
+  });
+
+  it("explains when production sign-in has not been configured", async () => {
+    renderDialog({
+      authenticated: false,
+      authConfigured: false,
+      allowLocalPreview: false,
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Sign in to upgrade" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Sign-in must be configured before paid subscriptions can start.",
+    );
   });
 });

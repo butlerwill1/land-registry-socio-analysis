@@ -11,7 +11,9 @@ cd web
 .\start-local.ps1
 ```
 
-Open `http://127.0.0.1:4173`. The base map uses OpenStreetMap tiles and therefore needs an internet connection; all analysis data is served locally.
+Open `http://127.0.0.1:4173`. The script starts both Vite and the FastAPI backend.
+The base map uses OpenStreetMap tiles and therefore needs an internet connection;
+all analysis data is served locally.
 
 ## Refresh the app data
 
@@ -24,7 +26,9 @@ From the repository root, rebuild and export the source data:
 .\.venv\Scripts\python.exe scripts\export_web_data.py
 ```
 
-This generates compact, simplified browser assets under `web/public/data`. Source data remains under `2_local_processing/3_gold`.
+This generates a five-year Free browser bundle under `web/public/data` and private
+premium assets under `backend/data`. Source data remains under
+`2_local_processing/3_gold`.
 
 The boundary refresh uses the public GLA postcode-unit layer for EC, WC, W1 and
 SW1 and validates it against official February 2026 ONS live-postcode centroids.
@@ -35,6 +39,8 @@ The transaction rebuild reads the validated HM Land Registry Parquet archive fro
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q
+cd backend
+..\.venv\Scripts\python.exe -m pytest -q --cov=app
 cd web
 pnpm build
 pnpm test
@@ -47,6 +53,14 @@ The local app starts on the Free plan. Select a locked metric or LSOA detail to 
 dialog, then use **Preview Pro locally** to exercise premium features without a Stripe account.
 You can also open `http://127.0.0.1:4173/?demoPlan=pro`.
 
-The UI calls server-side `/api/billing/checkout` and `/api/billing/portal` contracts, but those
-endpoints are intentionally not supplied by the static Vite application. See
-[`docs/freemium-stripe.md`](docs/freemium-stripe.md) for the production security and billing rollout.
+Premium data, entitlements, Checkout, Customer Portal, and signed Stripe webhooks are
+implemented by the FastAPI service under `backend`. See
+[`docs/freemium-stripe.md`](docs/freemium-stripe.md) and
+[`../backend/README.md`](../backend/README.md).
+
+## Production sign-in
+
+Copy `.env.example` to the deployment environment and set the OIDC authority, SPA
+client ID, and callback URL. The browser uses Authorization Code with PKCE, holds
+the access token in session storage, and sends it to FastAPI as a bearer token.
+Local development does not require an identity provider.

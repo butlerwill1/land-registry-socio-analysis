@@ -13,12 +13,46 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
 }
 
 Push-Location $PSScriptRoot
+$apiProcess = $null
 try {
     if (-not (Test-Path "node_modules")) {
         pnpm install
     }
+    $python = Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe"
+    if (-not (Test-Path $python)) {
+        throw "The repository Python environment is missing. Create .venv and install backend[test]."
+    }
+    $env:ATLAS_ALLOW_DEV_ENTITLEMENTS = "true"
+    $apiProcess = Start-Process `
+        -FilePath $python `
+        -ArgumentList @("-m", "uvicorn", "app.main:app", "--app-dir", "..\backend", "--host", "127.0.0.1", "--port", "8000") `
+        -WorkingDirectory $PSScriptRoot `
+        -WindowStyle Hidden `
+        -PassThru
+    $apiReady = $false
+    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+        if ($apiProcess.HasExited) {
+            throw "FastAPI exited before it became ready."
+        }
+        try {
+            $health = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/health" -TimeoutSec 1
+            if ($health.status -eq "ok") {
+                $apiReady = $true
+                break
+            }
+        }
+        catch {
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    if (-not $apiReady) {
+        throw "FastAPI did not become ready within 30 seconds."
+    }
     pnpm dev
 }
 finally {
+    if ($null -ne $apiProcess -and -not $apiProcess.HasExited) {
+        Stop-Process -Id $apiProcess.Id
+    }
     Pop-Location
 }

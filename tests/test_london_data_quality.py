@@ -13,6 +13,7 @@ from shapely.geometry import Point, shape
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WEB_DATA_DIR = PROJECT_ROOT / "web" / "public" / "data"
+PRIVATE_DATA_DIR = PROJECT_ROOT / "backend" / "data"
 sys.path.insert(0, str(PROJECT_ROOT / "2_local_processing"))
 
 from postcode_boundaries import validate_topology  # noqa: E402
@@ -37,17 +38,17 @@ EXPECTED_CENTRAL_DISTRICTS = {
 }
 
 
-def _load_json(name: str) -> object:
-    return json.loads((WEB_DATA_DIR / name).read_text(encoding="utf-8"))
+def _load_json(directory: Path, name: str) -> object:
+    return json.loads((directory / name).read_text(encoding="utf-8"))
 
 
 class LondonAtlasDataQualityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.metadata = _load_json("metadata.json")
-        cls.districts = _load_json("districts.json")
-        cls.boundaries = _load_json("district-boundaries.geojson")
-        cls.lsoas = _load_json("lsoa-boundaries.geojson")
+        cls.metadata = _load_json(WEB_DATA_DIR, "metadata.json")
+        cls.districts = _load_json(PRIVATE_DATA_DIR, "districts.private.json")
+        cls.boundaries = _load_json(WEB_DATA_DIR, "district-boundaries.geojson")
+        cls.lsoas = _load_json(PRIVATE_DATA_DIR, "lsoa.private.geojson")
 
         cls.records_by_district = {
             record["district"]: record for record in cls.districts

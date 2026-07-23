@@ -1,4 +1,13 @@
-import type { AppMetadata, AtlasFeatureCollection, DistrictRecord } from "../types";
+import type {
+  AppMetadata,
+  AtlasFeatureCollection,
+  DistrictRecord,
+  EntitlementResponse,
+  MapMetricResponse,
+  MetricKey,
+} from "../types";
+import { fetchApi } from "./api";
+import type { PlanId } from "./plans";
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
@@ -17,14 +26,42 @@ export async function loadInitialData() {
   return { metadata, districts, districtBoundaries };
 }
 
-let lsoaPromise: Promise<AtlasFeatureCollection> | undefined;
+export function loadEntitlements(plan: PlanId): Promise<EntitlementResponse> {
+  return fetchApi<EntitlementResponse>("/api/account/entitlements", plan);
+}
 
-export function loadLsoaBoundaries(): Promise<AtlasFeatureCollection> {
-  lsoaPromise ??= fetchJson<AtlasFeatureCollection>("/data/lsoa-boundaries.geojson").catch(
-    (error: unknown) => {
-      lsoaPromise = undefined;
-      throw error;
-    },
+export function loadDistrictDetail(
+  district: string,
+  plan: PlanId,
+  signal?: AbortSignal,
+): Promise<DistrictRecord> {
+  return fetchApi<DistrictRecord>(
+    `/api/data/districts/${encodeURIComponent(district)}`,
+    plan,
+    { signal },
   );
-  return lsoaPromise;
+}
+
+export function loadMapMetric(
+  metric: MetricKey,
+  year: number,
+  plan: PlanId,
+  signal?: AbortSignal,
+): Promise<MapMetricResponse> {
+  const query = new URLSearchParams({ metric, year: String(year) });
+  return fetchApi<MapMetricResponse>(`/api/data/map?${query}`, plan, { signal });
+}
+
+export function loadLsoaBoundaries(
+  district: string,
+  metric: MetricKey,
+  plan: PlanId,
+  signal?: AbortSignal,
+): Promise<AtlasFeatureCollection> {
+  const query = new URLSearchParams({ metric });
+  return fetchApi<AtlasFeatureCollection>(
+    `/api/data/lsoas/${encodeURIComponent(district)}?${query}`,
+    plan,
+    { signal },
+  );
 }

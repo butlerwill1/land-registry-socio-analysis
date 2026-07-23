@@ -124,10 +124,12 @@ export function DetailPanel({
                 .filter((metric) => plan === "pro" || metric === "overall")
                 .map((metric) => {
                   const value = district[metric];
-                  const percentile = getPercentile(
-                    value,
-                    districts.map((item) => item[metric]),
-                  );
+                  const percentile =
+                    district.percentiles?.[metric] ??
+                    getPercentile(
+                      value,
+                      districts.map((item) => item[metric]),
+                    );
                   return (
                     <div className="indicator-row" key={metric}>
                       <span>{socioeconomicLabels[metric]}</span>

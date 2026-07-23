@@ -12,7 +12,9 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 GOLD_DIR = PROJECT_ROOT / "2_local_processing" / "3_gold"
-OUTPUT_DIR = PROJECT_ROOT / "web" / "public" / "data"
+PUBLIC_OUTPUT_DIR = PROJECT_ROOT / "web" / "public" / "data"
+PRIVATE_OUTPUT_DIR = PROJECT_ROOT / "backend" / "data"
+FREE_TRANSACTION_YEARS = 5
 DISTRICT_SOURCE = GOLD_DIR / "district_geometry_london_flats.gpkg"
 LSOA_SOURCE = GOLD_DIR / "socio_economic_postcode_london_flats.gpkg"
 TRANSACTION_SOURCE = GOLD_DIR / "district_transactions_london_flats.csv"
@@ -82,7 +84,8 @@ def _geojson_payload(frame: gpd.GeoDataFrame, id_column: str) -> dict:
 
 
 def export() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    PUBLIC_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    PRIVATE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     district_source = gpd.read_file(DISTRICT_SOURCE)
     lsoa_source = gpd.read_file(LSOA_SOURCE)
@@ -208,22 +211,58 @@ def export() -> None:
         "transactionCount": int(transactions["num_transactions"].sum()),
     }
 
-    _write_json(OUTPUT_DIR / "metadata.json", metadata)
-    _write_json(OUTPUT_DIR / "districts.json", district_records)
+    free_years = set(
+        year for year in years if year <= latest_complete_year
+    )
+    free_years = set(sorted(free_years)[-FREE_TRANSACTION_YEARS:])
+    free_records = []
+    for record in district_records:
+        free_record = {
+            **record,
+            "population": None,
+            "populationDensity": None,
+            "income": None,
+            "employment": None,
+            "education": None,
+            "health": None,
+            "crime": None,
+            "housingBarriers": None,
+            "environment": None,
+            "history": [
+                item for item in record["history"] if item["year"] in free_years
+            ],
+        }
+        free_records.append(free_record)
+
+    _write_json(PUBLIC_OUTPUT_DIR / "metadata.json", metadata)
+    _write_json(PUBLIC_OUTPUT_DIR / "districts.json", free_records)
     _write_json(
-        OUTPUT_DIR / "district-boundaries.geojson",
+        PUBLIC_OUTPUT_DIR / "district-boundaries.geojson",
         _geojson_payload(district_geometry, "district"),
     )
+    public_lsoa_path = PUBLIC_OUTPUT_DIR / "lsoa-boundaries.geojson"
+    if public_lsoa_path.exists():
+        public_lsoa_path.unlink()
+
+    _write_json(PRIVATE_OUTPUT_DIR / "metadata.json", metadata)
+    _write_json(PRIVATE_OUTPUT_DIR / "districts.private.json", district_records)
     _write_json(
-        OUTPUT_DIR / "lsoa-boundaries.geojson",
+        PRIVATE_OUTPUT_DIR / "lsoa.private.geojson",
         _geojson_payload(lsoas, "lsoaCode"),
     )
 
-    sizes = {
+    public_sizes = {
         path.name: round(path.stat().st_size / 1_000_000, 2)
-        for path in sorted(OUTPUT_DIR.iterdir())
+        for path in sorted(PUBLIC_OUTPUT_DIR.iterdir())
     }
-    print(f"Exported {len(districts)} districts and {len(lsoas)} LSOAs: {sizes}")
+    private_sizes = {
+        path.name: round(path.stat().st_size / 1_000_000, 2)
+        for path in sorted(PRIVATE_OUTPUT_DIR.iterdir())
+    }
+    print(
+        f"Exported {len(districts)} districts and {len(lsoas)} LSOAs: "
+        f"public={public_sizes}, private={private_sizes}"
+    )
 
 
 if __name__ == "__main__":

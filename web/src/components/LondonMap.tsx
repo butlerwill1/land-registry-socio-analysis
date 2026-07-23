@@ -8,7 +8,12 @@ import {
   metricByKey,
   priceMetricKeys,
 } from "../lib/metrics";
-import type { AtlasFeatureCollection, DistrictRecord, MetricKey } from "../types";
+import type {
+  AtlasFeatureCollection,
+  DistrictRecord,
+  MapMetricResponse,
+  MetricKey,
+} from "../types";
 
 const COLOURS = ["#d9f1ed", "#b7e1da", "#82c9bd", "#4ba99a", "#1f8878", "#086354"];
 const EMPTY_COLOUR = "#dfe5e2";
@@ -21,6 +26,7 @@ interface LondonMapProps {
   year: number;
   lsoaEnabled: boolean;
   lsoaBoundaries?: AtlasFeatureCollection;
+  mapMetric?: MapMetricResponse;
   onDistrictChange: (district: string) => void;
 }
 
@@ -29,6 +35,7 @@ function withValues(
   records: Map<string, DistrictRecord>,
   metric: MetricKey,
   year: number,
+  apiValues?: Map<string, number | null>,
 ): AtlasFeatureCollection {
   return {
     ...collection,
@@ -39,7 +46,11 @@ function withValues(
         ...feature,
         properties: {
           ...feature.properties,
-          value: district ? getMetricValue(district, metric, year) : null,
+          value: apiValues
+            ? (apiValues.get(districtCode) ?? null)
+            : district
+              ? getMetricValue(district, metric, year)
+              : null,
         },
       };
     }),
@@ -60,7 +71,7 @@ function withLsoaValues(
           feature.properties?.includedInDistrictSummary === true,
       )
       .map((feature) => {
-        const rawValue = feature.properties?.[metric];
+        const rawValue = feature.properties?.value ?? feature.properties?.[metric];
         return {
           ...feature,
           properties: {
@@ -119,6 +130,7 @@ export default function LondonMap({
   year,
   lsoaEnabled,
   lsoaBoundaries,
+  mapMetric,
   onDistrictChange,
 }: LondonMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -131,6 +143,13 @@ export default function LondonMap({
     () => new Map(districts.map((district) => [district.district, district])),
     [districts],
   );
+  const apiValueMap = useMemo(
+    () =>
+      mapMetric && mapMetric.metric === metric && mapMetric.year === year
+        ? new Map(mapMetric.values.map((item) => [item.district, item.value]))
+        : undefined,
+    [mapMetric, metric, year],
+  );
 
   useEffect(() => {
     onDistrictChangeRef.current = onDistrictChange;
@@ -141,15 +160,16 @@ export default function LondonMap({
   }, [metric]);
 
   const districtData = useMemo(
-    () => withValues(boundaries, recordMap, metric, year),
-    [boundaries, metric, recordMap, year],
+    () => withValues(boundaries, recordMap, metric, year, apiValueMap),
+    [apiValueMap, boundaries, metric, recordMap, year],
   );
   const values = useMemo(
     () =>
-      districts
-        .map((district) => getMetricValue(district, metric, year))
+      (apiValueMap
+        ? [...apiValueMap.values()]
+        : districts.map((district) => getMetricValue(district, metric, year)))
         .filter((value): value is number => value !== null && Number.isFinite(value)),
-    [districts, metric, year],
+    [apiValueMap, districts, metric, year],
   );
   const breaks = useMemo(() => getQuantileBreaks(values), [values]);
 
