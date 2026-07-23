@@ -8,9 +8,12 @@ from fastapi import HTTPException, Request, status
 
 
 class FixedWindowRateLimiter:
-    def __init__(self, requests: int, window_seconds: int) -> None:
+    def __init__(
+        self, requests: int, window_seconds: int, error_detail: str = "Too many requests. Try again shortly."
+    ) -> None:
         self._requests = requests
         self._window_seconds = window_seconds
+        self._error_detail = error_detail
         self._entries: dict[str, deque[float]] = defaultdict(deque)
         self._lock = Lock()
 
@@ -25,7 +28,7 @@ class FixedWindowRateLimiter:
                 retry_after = max(1, int(entries[0] + self._window_seconds - now))
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail="Too many data requests. Try again shortly.",
+                    detail=self._error_detail,
                     headers={"Retry-After": str(retry_after)},
                 )
             entries.append(now)
@@ -35,3 +38,8 @@ def enforce_data_rate_limit(request: Request, subject: str | None = None) -> Non
     host = request.client.host if request.client else "unknown"
     identity = subject or host
     request.app.state.data_rate_limiter.check(identity)
+
+
+def enforce_pro_access_rate_limit(request: Request) -> None:
+    host = request.client.host if request.client else "unknown"
+    request.app.state.pro_access_rate_limiter.check(host)

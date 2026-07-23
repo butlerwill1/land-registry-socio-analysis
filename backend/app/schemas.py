@@ -185,6 +185,10 @@ class EntitlementResponse(ApiModel):
     features: list[str]
 
 
+class AccessCodeRequest(ApiModel):
+    code: str = Field(min_length=1, max_length=128)
+
+
 class CheckoutRequest(ApiModel):
     plan: Literal["pro"]
     interval: BillingInterval
@@ -214,6 +218,7 @@ class Principal(ApiModel):
     email: str | None = None
     authenticated: bool = False
     devPlan: PlanId | None = None
+    codePlan: PlanId | None = None
 
 
 class SubscriptionProjection(ApiModel):

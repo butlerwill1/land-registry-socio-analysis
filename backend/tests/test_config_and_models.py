@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,44 @@ def test_partial_stripe_configuration_is_rejected(tmp_path: Path) -> None:
             app_env="test",
             data_dir=tmp_path,
             stripe_monthly_price_id="price_month",
+        )
+
+
+def test_partial_pro_access_code_configuration_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="Pro access code"):
+        Settings(
+            app_env="test",
+            data_dir=tmp_path,
+            pro_access_code="friend-code",
+        )
+
+
+def test_short_pro_access_signing_secret_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="at least 32 characters"):
+        Settings(
+            app_env="test",
+            data_dir=tmp_path,
+            pro_access_code="friend-code",
+            pro_access_signing_secret="too-short",
+            pro_access_expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+        )
+
+
+def test_pro_access_code_requires_a_timezone_aware_expiry(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="expiry"):
+        Settings(
+            app_env="test",
+            data_dir=tmp_path,
+            pro_access_code="friend-code",
+            pro_access_signing_secret="a-signing-secret-that-is-at-least-32-characters",
+        )
+    with pytest.raises(ValidationError, match="timezone"):
+        Settings(
+            app_env="test",
+            data_dir=tmp_path,
+            pro_access_code="friend-code",
+            pro_access_signing_secret="a-signing-secret-that-is-at-least-32-characters",
+            pro_access_expires_at=datetime.now(),
         )
 
 

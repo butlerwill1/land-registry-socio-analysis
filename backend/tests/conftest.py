@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 from typing import Any
@@ -218,6 +219,9 @@ def settings(tmp_path: Path, data_dir: Path) -> Settings:
         data_dir=data_dir,
         database_url=f"sqlite:///{(tmp_path / 'test.db').as_posix()}",
         allow_dev_entitlements=True,
+        pro_access_code=SecretStr("friend-code"),
+        pro_access_signing_secret=SecretStr("test-signing-secret-that-is-at-least-32-characters"),
+        pro_access_expires_at=datetime.now(timezone.utc) + timedelta(days=14),
         stripe_secret_key=SecretStr("sk_test_example"),
         stripe_webhook_secret=SecretStr("whsec_example"),
         stripe_monthly_price_id="price_month",

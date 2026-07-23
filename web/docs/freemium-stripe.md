@@ -21,6 +21,14 @@ Pro launch hypothesis:
 
 These prices are hypotheses to validate with users, not a final commercial decision.
 
+## Shared preview access
+
+The app also supports a single shared code for private previews. Redeeming it grants
+the current browser anonymous Pro access until a fixed server-configured expiry without
+creating an account or visiting Stripe. This is intended for the owner and trusted
+friends, rather than paid customer access. Changing the access-code signing secret
+invalidates every existing shared-code session.
+
 ## Billing API
 
 The browser uses authenticated server endpoints:

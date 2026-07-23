@@ -40,6 +40,18 @@ test("gates premium map detail and supports a local Pro preview", async ({ page 
   await expect(page.getByText("SW11 · LSOA detail")).toBeVisible({ timeout: 20_000 });
 });
 
+test("unlocks Pro with a shared access code without sign-in", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Upgrade" }).click();
+  const pricing = page.getByRole("dialog", { name: "Choose your level of detail" });
+  await pricing.getByLabel("Have an access code?").fill("local-pro");
+  await pricing.getByRole("button", { name: "Unlock Pro" }).click();
+  await expect(pricing).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Exit preview" })).toBeVisible();
+  await page.getByRole("button", { name: "LSOAs (2021)" }).click();
+  await expect(page.getByText("SW11 · LSOA detail")).toBeVisible({ timeout: 20_000 });
+});
+
 test("limits Free transaction research to five complete years", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Free includes 2021-2025.")).toBeVisible();

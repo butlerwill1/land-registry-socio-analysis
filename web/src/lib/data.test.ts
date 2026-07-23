@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadDistrictDetail, loadEntitlements, loadLsoaBoundaries, loadMapMetric } from "./data";
+import { loadDistrictDetail, loadEntitlements, loadLsoaBoundaries, loadMapMetric, redeemProAccessCode } from "./data";
 
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
@@ -63,5 +63,24 @@ describe("premium data API client", () => {
       globalThis.fetch = originalFetch;
     }
     expect(request.mock.calls[0][0]).toBe("/api/data/lsoas/SW11?metric=overall");
+  });
+
+  it("redeems a shared Pro access code through the API", async () => {
+    const request = vi.fn().mockResolvedValue(
+      jsonResponse({ plan: "pro", authenticated: false, features: ["lsoa_detail"] }),
+    );
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = request;
+    try {
+      await expect(redeemProAccessCode("FRIEND-CODE")).resolves.toMatchObject({ plan: "pro" });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    expect(request.mock.calls[0][0]).toBe("/api/account/access-code");
+    expect(request.mock.calls[0][1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ code: "FRIEND-CODE" }),
+      headers: expect.objectContaining({ "Content-Type": "application/json" }),
+    });
   });
 });

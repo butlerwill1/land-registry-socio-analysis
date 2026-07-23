@@ -53,6 +53,14 @@ The local app starts on the Free plan. Select a locked metric or LSOA detail to 
 dialog, then use **Preview Pro locally** to exercise premium features without a Stripe account.
 You can also open `http://127.0.0.1:4173/?demoPlan=pro`.
 
+## Shared access code
+
+The Pro dialog accepts a shared server-configured access code and does not require
+Stripe, an account, or an email address. Locally, enter `local-pro`; in production,
+configure `ATLAS_PRO_ACCESS_CODE`, `ATLAS_PRO_ACCESS_SIGNING_SECRET`, and
+`ATLAS_PRO_ACCESS_EXPIRES_AT` in the backend environment. The browser is granted Pro
+through an HttpOnly cookie until that fixed expiry date.
+
 Premium data, entitlements, Checkout, Customer Portal, and signed Stripe webhooks are
 implemented by the FastAPI service under `backend`. See
 [`docs/freemium-stripe.md`](docs/freemium-stripe.md) and

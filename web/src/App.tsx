@@ -8,6 +8,7 @@ import {
   loadInitialData,
   loadLsoaBoundaries,
   loadMapMetric,
+  redeemProAccessCode,
 } from "./lib/data";
 import { priceMetricKeys } from "./lib/metrics";
 import {
@@ -290,6 +291,11 @@ export function App() {
           onSignIn={async () => {
             const { signIn } = await import("./lib/auth");
             await signIn();
+          }}
+          onRedeemAccessCode={async (code) => {
+            const entitlements = await redeemProAccessCode(code);
+            setPlan(entitlements.plan);
+            setAuthenticated(entitlements.authenticated);
           }}
         />
       </Suspense>

@@ -12,6 +12,7 @@ FastAPI service for premium data access, account entitlements, and Stripe Billin
 - verifies and processes Stripe webhooks idempotently
 - persists users and subscriptions in SQLite or PostgreSQL
 - rate-limits data endpoints per authenticated user or client IP
+- optionally grants anonymous Pro access through one shared, expiring access code
 
 The public browser bundle remains under `web/public/data`. It contains five complete
 transaction years, overall IMD, and no premium socioeconomic fields. Full district
@@ -67,6 +68,27 @@ VITE_OIDC_REDIRECT_URI=https://your-domain.example/
 The provider's access-token issuer and audience must match the backend settings.
 Register the deployed URL as an allowed callback and logout URL with the provider.
 
+## Shared Pro access code
+
+For private previews, set a shared code and a separate long random signing secret:
+
+```text
+ATLAS_PRO_ACCESS_CODE=your-shareable-code
+ATLAS_PRO_ACCESS_SIGNING_SECRET=long-random-secret-kept-private
+ATLAS_PRO_ACCESS_EXPIRES_AT=2026-12-31T23:59:59Z
+```
+
+The browser sends the code once to FastAPI. On success, FastAPI stores an HttpOnly
+Pro-access cookie that expires at the configured UTC date and time; no account, email,
+or Stripe interaction is required. The endpoint limits attempts by client IP. Changing
+the code or signing secret revokes every existing code-access session immediately.
+Once the configured expiry passes, code redemption returns an expiry message while the
+rest of the API remains available; set a later expiry to issue a new code again.
+
+The built-in attempt limiter is intended for one small application instance. When the
+app is placed behind a proxy or scaled to multiple instances, apply an equivalent
+IP-based rate limit at the hosting layer or use shared rate-limit storage.
+
 SQLite is the local default. PostgreSQL is selected with a URL such as:
 
 ```text
@@ -101,6 +123,7 @@ state is committed.
 ```text
 GET  /api/health
 GET  /api/account/entitlements
+POST /api/account/access-code
 GET  /api/data/districts/{district}
 GET  /api/data/map?metric={metric}&year={year}
 GET  /api/data/lsoas/{district}?metric={metric}

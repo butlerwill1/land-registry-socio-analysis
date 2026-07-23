@@ -30,6 +30,14 @@ export function loadEntitlements(plan: PlanId): Promise<EntitlementResponse> {
   return fetchApi<EntitlementResponse>("/api/account/entitlements", plan);
 }
 
+export function redeemProAccessCode(code: string): Promise<EntitlementResponse> {
+  return fetchApi<EntitlementResponse>("/api/account/access-code", "free", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+}
+
 export function loadDistrictDetail(
   district: string,
   plan: PlanId,

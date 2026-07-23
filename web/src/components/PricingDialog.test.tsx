@@ -13,6 +13,7 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof PricingDial
     onClose: vi.fn(),
     onPreviewPro: vi.fn(),
     onSignIn: vi.fn(),
+    onRedeemAccessCode: vi.fn(),
     ...overrides,
   };
   render(<PricingDialog {...props} />);
@@ -57,6 +58,14 @@ describe("PricingDialog", () => {
   it("does not expose the local preview in a production-like state", () => {
     renderDialog({ allowLocalPreview: false });
     expect(screen.queryByRole("button", { name: "Preview Pro locally" })).not.toBeInTheDocument();
+  });
+
+  it("redeems an access code without requiring a sign-in or Stripe", async () => {
+    const props = renderDialog({ authenticated: false, authConfigured: false });
+    await userEvent.type(screen.getByLabelText("Have an access code?"), "FRIEND-CODE");
+    await userEvent.click(screen.getByRole("button", { name: "Unlock Pro" }));
+    expect(props.onRedeemAccessCode).toHaveBeenCalledWith("FRIEND-CODE");
+    expect(props.onClose).toHaveBeenCalledOnce();
   });
 
   it("starts sign-in before checkout for an anonymous production user", async () => {

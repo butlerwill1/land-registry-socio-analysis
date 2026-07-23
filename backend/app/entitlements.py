@@ -26,6 +26,8 @@ def resolve_plan(
 ) -> PlanId:
     if principal.devPlan is not None:
         return principal.devPlan
+    if principal.codePlan is not None:
+        return principal.codePlan
     if not principal.authenticated or principal.subject is None:
         return "free"
     user = session.scalar(

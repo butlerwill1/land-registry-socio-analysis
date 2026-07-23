@@ -23,6 +23,9 @@ try {
         throw "The repository Python environment is missing. Create .venv and install backend[test]."
     }
     $env:ATLAS_ALLOW_DEV_ENTITLEMENTS = "true"
+    $env:ATLAS_PRO_ACCESS_CODE = "local-pro"
+    $env:ATLAS_PRO_ACCESS_SIGNING_SECRET = "local-development-signing-secret-at-least-32-chars"
+    $env:ATLAS_PRO_ACCESS_EXPIRES_AT = "2099-01-01T00:00:00Z"
     $apiProcess = Start-Process `
         -FilePath $python `
         -ArgumentList @("-m", "uvicorn", "app.main:app", "--app-dir", "..\backend", "--host", "127.0.0.1", "--port", "8000") `

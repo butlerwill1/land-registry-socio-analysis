@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -31,6 +32,12 @@ class Settings(BaseSettings):
     allow_dev_entitlements: bool = False
     cors_origins: list[str] = ["http://127.0.0.1:4173"]
 
+    pro_access_code: SecretStr | None = None
+    pro_access_signing_secret: SecretStr | None = None
+    pro_access_expires_at: datetime | None = None
+    pro_access_rate_limit_requests: int = 5
+    pro_access_rate_limit_window_seconds: int = 300
+
     oidc_issuer: str | None = None
     oidc_audience: str | None = None
     oidc_jwks_url: str | None = None
@@ -58,8 +65,28 @@ class Settings(BaseSettings):
         )
         if any(stripe_values) and not all(stripe_values):
             raise ValueError("All Stripe settings must be configured together")
-        if self.data_rate_limit_requests < 1 or self.data_rate_limit_window_seconds < 1:
+        access_code_values = (
+            self.pro_access_code,
+            self.pro_access_signing_secret,
+            self.pro_access_expires_at,
+        )
+        if any(access_code_values) and not all(access_code_values):
+            raise ValueError("Pro access code, signing secret, and expiry must be configured together")
+        if (
+            self.pro_access_signing_secret is not None
+            and len(self.pro_access_signing_secret.get_secret_value()) < 32
+        ):
+            raise ValueError("Pro access signing secret must be at least 32 characters")
+        if (
+            self.data_rate_limit_requests < 1
+            or self.data_rate_limit_window_seconds < 1
+            or self.pro_access_rate_limit_requests < 1
+            or self.pro_access_rate_limit_window_seconds < 1
+        ):
             raise ValueError("Rate-limit values must be positive")
+        if self.pro_access_expires_at is not None:
+            if self.pro_access_expires_at.tzinfo is None:
+                raise ValueError("Pro access expiry must include a timezone")
         return self
 
     @property
@@ -73,6 +100,14 @@ class Settings(BaseSettings):
             and self.stripe_webhook_secret
             and self.stripe_monthly_price_id
             and self.stripe_yearly_price_id
+        )
+
+    @property
+    def pro_access_enabled(self) -> bool:
+        return bool(
+            self.pro_access_code
+            and self.pro_access_signing_secret
+            and self.pro_access_expires_at
         )
 
 

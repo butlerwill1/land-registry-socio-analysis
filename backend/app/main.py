@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from .auth import OidcTokenVerifier
+from .auth import OidcTokenVerifier, ProAccessCodeService
 from .billing import BillingGateway, StripeBillingGateway
 from .config import Settings, get_settings
 from .data_repository import DataRepository
@@ -49,9 +49,16 @@ def create_app(
     app.state.engine = engine
     app.state.billing_gateway = billing_gateway or StripeBillingGateway(app_settings)
     app.state.token_verifier = token_verifier or OidcTokenVerifier(app_settings)
+    app.state.pro_access_code_service = ProAccessCodeService(app_settings)
     app.state.data_rate_limiter = rate_limiter or FixedWindowRateLimiter(
         app_settings.data_rate_limit_requests,
         app_settings.data_rate_limit_window_seconds,
+        "Too many data requests. Try again shortly.",
+    )
+    app.state.pro_access_rate_limiter = FixedWindowRateLimiter(
+        app_settings.pro_access_rate_limit_requests,
+        app_settings.pro_access_rate_limit_window_seconds,
+        "Too many access-code attempts. Try again shortly.",
     )
 
     app.add_middleware(

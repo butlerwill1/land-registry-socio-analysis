@@ -886,6 +886,43 @@ select:focus-visible {
   line-height: 1.5;
 }
 
+.access-code-entry {
+  margin-top: 18px;
+  padding: 12px;
+  background: #f5fbf9;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+
+.access-code-entry label {
+  display: block;
+  margin-bottom: 7px;
+  color: #3e4a46;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.access-code-entry > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 8px;
+}
+
+.access-code-entry input {
+  min-width: 0;
+  height: 40px;
+  padding: 0 10px;
+  color: var(--text);
+  background: #ffffff;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  font: inherit;
+}
+
+.access-code-entry .plan-button {
+  margin: 0;
+}
+
 .icon-button {
   width: 34px;
   height: 34px;

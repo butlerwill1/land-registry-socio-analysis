@@ -58,6 +58,7 @@ web/playwright-report/
 web/test-results/
 *.tsbuildinfo
 .venv/
+/.coverage
 backend/.env
 backend/.coverage
 backend/*.egg-info/

@@ -1,5 +1,5 @@
 import { Check, LockKeyhole, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { createCheckout } from "../lib/billing";
 import {
   formatPlanPrice,
@@ -18,6 +18,7 @@ interface PricingDialogProps {
   onClose: () => void;
   onPreviewPro: () => void;
   onSignIn: () => Promise<void>;
+  onRedeemAccessCode: (code: string) => Promise<void>;
 }
 
 export function PricingDialog({
@@ -29,15 +30,20 @@ export function PricingDialog({
   onClose,
   onPreviewPro,
   onSignIn,
+  onRedeemAccessCode,
 }: PricingDialogProps) {
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [checkoutPending, setCheckoutPending] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string>();
+  const [accessCode, setAccessCode] = useState("");
+  const [accessCodePending, setAccessCodePending] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setCheckoutPending(false);
       setCheckoutError(undefined);
+      setAccessCode("");
+      setAccessCodePending(false);
     }
   }, [open]);
 
@@ -72,6 +78,23 @@ export function PricingDialog({
     }
   };
 
+  const redeemAccessCode = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!accessCode.trim()) return;
+    setAccessCodePending(true);
+    setCheckoutError(undefined);
+    try {
+      await onRedeemAccessCode(accessCode.trim());
+      onClose();
+    } catch (reason) {
+      setCheckoutError(
+        reason instanceof Error ? reason.message : "The access code could not be applied.",
+      );
+    } finally {
+      setAccessCodePending(false);
+    }
+  };
+
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section
@@ -90,6 +113,25 @@ export function PricingDialog({
             <X size={19} />
           </button>
         </header>
+
+        <form className="access-code-entry" onSubmit={redeemAccessCode}>
+          <label htmlFor="pro-access-code">Have an access code?</label>
+          <div>
+            <input
+              id="pro-access-code"
+              type="password"
+              value={accessCode}
+              onChange={(event) => setAccessCode(event.target.value)}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              disabled={accessCodePending}
+            />
+            <button type="submit" className="plan-button primary" disabled={!accessCode.trim() || accessCodePending}>
+              {accessCodePending ? "Unlocking..." : "Unlock Pro"}
+            </button>
+          </div>
+        </form>
 
         <div className="billing-toggle" role="group" aria-label="Billing interval">
           <button
