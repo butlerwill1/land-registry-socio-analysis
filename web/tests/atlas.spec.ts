@@ -5,6 +5,9 @@ test("loads the London map workspace and supports core filters", async ({ page }
   await expect(page.getByText("London Flat Atlas")).toBeVisible();
   await expect(page.getByRole("heading", { name: "SW11" })).toBeVisible({ timeout: 20_000 });
   await expect(page.getByLabel("London postcode district map")).toBeVisible();
+  await expect(
+    page.getByText(/Contains HM Land Registry data © Crown copyright and database right 2021/),
+  ).toBeVisible();
 
   await page.getByLabel("Metric", { exact: true }).selectOption("overall");
   await expect(page.getByLabel("Overall deprivation score legend")).toBeVisible();

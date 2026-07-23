@@ -270,7 +270,11 @@ export function ControlRail({
       <footer className="rail-footer">
         <span>{metadata.districtCount} postcode districts</span>
         <span>{metadata.lsoaCount.toLocaleString("en-GB")} mapped LSOAs</span>
-        <span>Prices are nominal. Contains HM Land Registry data.</span>
+        <span>Prices are nominal.</span>
+        <span>
+          Contains HM Land Registry data © Crown copyright and database right 2021.
+          Licensed under the Open Government Licence v3.0.
+        </span>
       </footer>
     </aside>
   );
